@@ -1,0 +1,47 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.25"
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocritic
+    - nolintlint
+  settings:
+    errcheck:
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
+    misspell:
+      locale: US
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gocritic
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

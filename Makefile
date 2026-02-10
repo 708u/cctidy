@@ -1,7 +1,7 @@
 .PHONY: build install test lint fmt
 
 build:
-	go build -o ccfmt ./cmd/
+	go build -o cctidy ./cmd/
 
 install:
 	go install ./cmd/

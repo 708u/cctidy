@@ -1,4 +1,4 @@
-module github.com/708u/ccfmt
+module github.com/708u/cctidy
 
 go 1.25.5
 

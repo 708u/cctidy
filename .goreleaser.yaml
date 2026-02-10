@@ -3,7 +3,7 @@
 
 version: 2
 
-project_name: ccfmt
+project_name: cctidy
 
 before:
   hooks:
@@ -11,7 +11,7 @@ before:
 
 builds:
   - main: ./cmd/
-    binary: ccfmt
+    binary: cctidy
     env:
       - CGO_ENABLED=0
     goos:
@@ -27,13 +27,13 @@ homebrew_casks:
       owner: 708u
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-    homepage: "https://github.com/708u/ccfmt"
+    homepage: "https://github.com/708u/cctidy"
     description: "CLI tool that formats ~/.claude.json"
     hooks:
       post:
         install: |
           if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/ccfmt"]
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/cctidy"]
           end
 
 archives:
@@ -82,4 +82,4 @@ release:
   footer: |
     ---
 
-    **Full Changelog**: https://github.com/708u/ccfmt/compare/{{.PreviousTag}}...{{.Tag}}
+    **Full Changelog**: https://github.com/708u/cctidy/compare/{{.PreviousTag}}...{{.Tag}}

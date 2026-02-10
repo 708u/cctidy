@@ -1,4 +1,4 @@
-# ccfmt
+# cctidy
 
 A CLI tool that formats Claude Code configuration files.
 
@@ -24,19 +24,19 @@ A CLI tool that formats Claude Code configuration files.
 ## Install
 
 ```bash
-brew install 708u/tap/ccfmt
+brew install 708u/tap/cctidy
 ```
 
 Or download from
-[Releases](https://github.com/708u/ccfmt/releases).
+[Releases](https://github.com/708u/cctidy/releases).
 
 ## Usage
 
 ```bash
-ccfmt              # Format all 5 target files
-ccfmt -t FILE      # Format a specific file only
-ccfmt --dry-run    # Show changes without writing
-ccfmt --backup     # Create backup before writing
+cctidy              # Format all 5 target files
+cctidy -t FILE      # Format a specific file only
+cctidy --dry-run    # Show changes without writing
+cctidy --backup     # Create backup before writing
 ```
 
 ## License

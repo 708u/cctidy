@@ -5,7 +5,7 @@ when working with code in this repository.
 
 ## Project Overview
 
-ccfmt is a CLI tool that formats Claude Code configuration files:
+cctidy is a CLI tool that formats Claude Code configuration files:
 
 - `~/.claude.json` - Main settings with path cleaning
 - `~/.claude/settings.json` - User global settings
@@ -27,7 +27,7 @@ It performs:
 ## Commands
 
 ```bash
-make build    # Build binary to ./ccfmt
+make build    # Build binary to ./cctidy
 make install  # Install to $GOPATH/bin
 make test     # Run all tests (unit + integration)
 
@@ -39,7 +39,7 @@ go test -tags integration ./cmd/ -update
 
 Two packages:
 
-- **`ccfmt` (root)** - Library package.
+- **`cctidy` (root)** - Library package.
   - `ClaudeJSONFormatter` - Takes a `PathChecker`
     interface. Performs path cleaning + key/array sorting.
     Used for `~/.claude.json`.
@@ -62,8 +62,8 @@ live in `cmd/integration_test.go`. Golden test data is in
 ## CLI Usage
 
 ```bash
-ccfmt              # Format all 5 target files
-ccfmt -t FILE      # Format a specific file only
-ccfmt --dry-run    # Show changes without writing
-ccfmt --backup     # Create backup before writing
+cctidy              # Format all 5 target files
+cctidy -t FILE      # Format a specific file only
+cctidy --dry-run    # Show changes without writing
+cctidy --backup     # Create backup before writing
 ```

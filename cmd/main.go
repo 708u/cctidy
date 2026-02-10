@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/708u/ccfmt"
+	"github.com/708u/cctidy"
 	"github.com/alecthomas/kong"
 )
 
@@ -20,12 +20,12 @@ type CLI struct {
 	DryRun  bool             `help:"Show changes without writing." name:"dry-run"`
 	Version kong.VersionFlag `help:"Print version."`
 
-	checker ccfmt.PathChecker
+	checker cctidy.PathChecker
 	w       io.Writer
 }
 
 type Formatter interface {
-	Format([]byte) (*ccfmt.FormatResult, error)
+	Format([]byte) (*cctidy.FormatResult, error)
 }
 
 type targetFile struct {
@@ -36,14 +36,14 @@ type targetFile struct {
 type fileResult struct {
 	path       string
 	original   []byte
-	result     *ccfmt.FormatResult
+	result     *cctidy.FormatResult
 	backupPath string
 }
 
 func main() {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ccfmt: %v\n", err)
+		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -56,7 +56,7 @@ func main() {
 	)
 
 	if err := cli.Run(home); err != nil {
-		fmt.Fprintf(os.Stderr, "ccfmt: %v\n", err)
+		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -84,9 +84,9 @@ func (c *CLI) runTargets(targets []targetFile) error {
 
 func (c *CLI) resolveTargets(home string) []targetFile {
 	if c.Target != "" {
-		var f Formatter = ccfmt.NewSettingsJSONFormatter()
+		var f Formatter = cctidy.NewSettingsJSONFormatter()
 		if filepath.Base(c.Target) == ".claude.json" {
-			f = ccfmt.NewClaudeJSONFormatter(c.checker)
+			f = cctidy.NewClaudeJSONFormatter(c.checker)
 		}
 		return []targetFile{{path: c.Target, formatter: f}}
 	}
@@ -95,8 +95,8 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 
 func (c *CLI) defaultTargets(home string) []targetFile {
 	cwd, _ := os.Getwd()
-	claude := ccfmt.NewClaudeJSONFormatter(c.checker)
-	settings := ccfmt.NewSettingsJSONFormatter()
+	claude := cctidy.NewClaudeJSONFormatter(c.checker)
+	settings := cctidy.NewSettingsJSONFormatter()
 	return []targetFile{
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
 		{path: filepath.Join(home, ".claude", "settings.json"), formatter: settings},

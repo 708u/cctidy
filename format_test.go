@@ -1,4 +1,4 @@
-package ccfmt
+package cctidy
 
 import (
 	"bytes"

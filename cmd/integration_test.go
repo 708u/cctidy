@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/708u/ccfmt"
+	"github.com/708u/cctidy"
 )
 
 type alwaysTrue struct{}
@@ -26,7 +26,7 @@ func TestGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	f := ccfmt.NewClaudeJSONFormatter(alwaysTrue{})
+	f := cctidy.NewClaudeJSONFormatter(alwaysTrue{})
 	result, err := f.Format(input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
@@ -58,7 +58,7 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := ccfmt.NewSettingsJSONFormatter().Format(input)
+	result, err := cctidy.NewSettingsJSONFormatter().Format(input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}
@@ -287,8 +287,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: claudeJSON, formatter: ccfmt.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: settingsJSON, formatter: ccfmt.NewSettingsJSONFormatter()},
+			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter()},
 		}
 		if err := cli.runTargets(targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -325,8 +325,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: claudeJSON, formatter: ccfmt.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: missingFile, formatter: ccfmt.NewSettingsJSONFormatter()},
+			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
+			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter()},
 		}
 		if err := cli.runTargets(targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -349,8 +349,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: settingsJSON, formatter: ccfmt.NewSettingsJSONFormatter()},
-			{path: filepath.Join(dir, "missing.json"), formatter: ccfmt.NewSettingsJSONFormatter()},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter()},
 		}
 		if err := cli.runTargets(targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -414,8 +414,8 @@ func TestResolveTargets(t *testing.T) {
 		t.Parallel()
 		cli := &CLI{Target: "/home/user/.claude.json", checker: alwaysTrue{}}
 		targets := cli.resolveTargets("/home/user")
-		if _, ok := targets[0].formatter.(*ccfmt.ClaudeJSONFormatter); !ok {
-			t.Errorf("claude.json should use *ccfmt.ClaudeJSONFormatter, got %T", targets[0].formatter)
+		if _, ok := targets[0].formatter.(*cctidy.ClaudeJSONFormatter); !ok {
+			t.Errorf("claude.json should use *cctidy.ClaudeJSONFormatter, got %T", targets[0].formatter)
 		}
 	})
 
@@ -423,8 +423,8 @@ func TestResolveTargets(t *testing.T) {
 		t.Parallel()
 		cli := &CLI{Target: "/home/user/.claude/settings.json", checker: alwaysTrue{}}
 		targets := cli.resolveTargets("/home/user")
-		if _, ok := targets[0].formatter.(*ccfmt.SettingsJSONFormatter); !ok {
-			t.Errorf("settings.json should use *ccfmt.SettingsJSONFormatter, got %T", targets[0].formatter)
+		if _, ok := targets[0].formatter.(*cctidy.SettingsJSONFormatter); !ok {
+			t.Errorf("settings.json should use *cctidy.SettingsJSONFormatter, got %T", targets[0].formatter)
 		}
 	})
 
@@ -438,12 +438,12 @@ func TestResolveTargets(t *testing.T) {
 		if targets[0].path != "/home/user/.claude.json" {
 			t.Errorf("first target should be claude.json: %s", targets[0].path)
 		}
-		if _, ok := targets[0].formatter.(*ccfmt.ClaudeJSONFormatter); !ok {
-			t.Errorf("claude.json should use *ccfmt.ClaudeJSONFormatter, got %T", targets[0].formatter)
+		if _, ok := targets[0].formatter.(*cctidy.ClaudeJSONFormatter); !ok {
+			t.Errorf("claude.json should use *cctidy.ClaudeJSONFormatter, got %T", targets[0].formatter)
 		}
 		for _, tf := range targets[1:] {
-			if _, ok := tf.formatter.(*ccfmt.SettingsJSONFormatter); !ok {
-				t.Errorf("settings file %s should use *ccfmt.SettingsJSONFormatter, got %T", tf.path, tf.formatter)
+			if _, ok := tf.formatter.(*cctidy.SettingsJSONFormatter); !ok {
+				t.Errorf("settings file %s should use *cctidy.SettingsJSONFormatter, got %T", tf.path, tf.formatter)
 			}
 		}
 	})

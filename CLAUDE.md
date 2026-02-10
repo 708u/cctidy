@@ -15,14 +15,15 @@ cctidy is a CLI tool that formats Claude Code configuration files:
 
 It performs:
 
-- Recursive key sorting of all JSON objects
-- Sorting of homogeneous arrays (string, number, bool)
 - Pretty-printing with 2-space indent
+- Key sorting (implicit via encoding/json encoder)
 - For `~/.claude.json` only:
   - Removal of non-existent project paths (`projects` key)
   - Removal of non-existent GitHub repo paths
     (`githubRepoPaths` key), including cleanup of empty
     repo keys
+- For settings files only:
+  - Sorting of homogeneous arrays (string, number, bool)
 
 ## Commands
 
@@ -41,7 +42,7 @@ Two packages:
 
 - **`cctidy` (root)** - Library package.
   - `ClaudeJSONFormatter` - Takes a `PathChecker`
-    interface. Performs path cleaning + key/array sorting.
+    interface. Performs path cleaning and pretty-printing.
     Used for `~/.claude.json`.
   - `SettingsJSONFormatter` - Sorts keys and arrays
     without path cleaning. Used for settings files.
@@ -66,6 +67,7 @@ cctidy              # Format all 5 target files
 cctidy -t FILE      # Format a specific file only
 cctidy --dry-run    # Show changes without writing
 cctidy --backup     # Create backup before writing
+cctidy -v           # Show formatting details
 ```
 
 ## Marketplace Plugin
@@ -73,9 +75,13 @@ cctidy --backup     # Create backup before writing
 `external/claude-code/plugins/cctidy/` に Claude Code
 marketplace plugin を配置している。
 
-- `hooks/hooks.json` - SessionStart / SessionEnd で
-  `cctidy` を実行する hook 定義
+- `hooks/hooks.json` - SessionStart で `cctidy` を
+  実行する hook 定義
 - `.claude-plugin/plugin.json` - plugin メタデータ
 
 リポジトリルートの `.claude-plugin/marketplace.json` が
 marketplace 用のエントリポイントとなる。
+
+## Pull Requests
+
+Write all PR titles and descriptions in English.

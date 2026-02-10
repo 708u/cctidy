@@ -42,8 +42,8 @@
       "/Users/test/project-a"
     ],
     "org/repo-beta": [
-      "/Users/test/project-a",
-      "/Users/test/project-b"
+      "/Users/test/project-b",
+      "/Users/test/project-a"
     ]
   },
   "groveConfigCache": {
@@ -115,8 +115,8 @@
   "projects": {
     "/Users/test/project-a": {
       "allowedTools": [
-        "Bash",
-        "Read"
+        "Read",
+        "Bash"
       ],
       "disabledMcpjsonServers": [],
       "enabledMcpjsonServers": [
@@ -139,16 +139,16 @@
     },
     "/Users/test/project-b": {
       "allowedTools": [
+        "Write",
         "Bash",
-        "Read",
-        "Write"
+        "Read"
       ],
       "disabledMcpjsonServers": [
         "disabled-server"
       ],
       "enabledMcpjsonServers": [
-        "server-a",
-        "server-b"
+        "server-b",
+        "server-a"
       ],
       "hasTrustDialogAccepted": true,
       "lastCost": 0.15,

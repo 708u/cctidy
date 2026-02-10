@@ -12,14 +12,15 @@ A CLI tool that formats Claude Code configuration files.
 
 ## What It Does
 
-- Recursive key sorting of all JSON objects
-- Sorting of homogeneous arrays (string, number, bool)
 - Pretty-printing with 2-space indent
+- Key sorting (implicit via encoding/json encoder)
 - For `~/.claude.json` only:
   - Removal of non-existent project paths (`projects` key)
   - Removal of non-existent GitHub repo paths
     (`githubRepoPaths` key), including cleanup of empty
     repo keys
+- For settings files only:
+  - Sorting of homogeneous arrays (string, number, bool)
 
 ## Install
 
@@ -38,6 +39,10 @@ cctidy -t FILE      # Format a specific file only
 cctidy --dry-run    # Show changes without writing
 cctidy --backup     # Create backup before writing
 ```
+
+## Contributing
+
+Write all PR titles and descriptions in English.
 
 ## License
 

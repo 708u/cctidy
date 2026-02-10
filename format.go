@@ -58,7 +58,7 @@ func (s *SettingsJSONFormatterStats) Summary() string {
 
 // ClaudeJSONFormatter formats ~/.claude.json with path cleaning
 // (removing non-existent projects and GitHub repo paths)
-// in addition to key sorting and array sorting.
+// and pretty-printing with 2-space indent.
 type ClaudeJSONFormatter struct {
 	PathChecker PathChecker
 }
@@ -82,7 +82,6 @@ func (f *ClaudeJSONFormatter) Format(data []byte) (*FormatResult, error) {
 	cj := &claudeJSONData{data: obj, checker: f.PathChecker}
 	cj.cleanProjects(stats)
 	cj.cleanGitHubRepoPaths(stats)
-	sortArraysRecursive(cj.data)
 
 	out, err := encodeJSON(cj.data)
 	if err != nil {

@@ -31,6 +31,10 @@ func (s *Stats) RepoPathsRemoved() int {
 	return s.RepoBefore - s.RepoAfter
 }
 
+func (s *Stats) Changed() bool {
+	return s.SizeBefore != s.SizeAfter
+}
+
 func (s *Stats) Summary(backupPath string) string {
 	var b strings.Builder
 	if s.ProjectsRemoved() > 0 {
@@ -41,7 +45,6 @@ func (s *Stats) Summary(backupPath string) string {
 		fmt.Fprintf(&b, "GitHub repo paths: %d -> %d (removed %d paths, %d empty repos)\n",
 			s.RepoBefore, s.RepoAfter, s.RepoPathsRemoved(), s.RemovedRepos)
 	}
-	fmt.Fprintf(&b, "Keys sorted recursively.\n")
 	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
 	if backupPath != "" {
@@ -58,13 +61,30 @@ type Formatter struct {
 	PathChecker PathChecker
 }
 
-func (f *Formatter) Format(data []byte) (*FormatResult, error) {
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.UseNumber()
+// FormatJSON formats arbitrary JSON by sorting keys recursively
+// and sorting homogeneous arrays. No path cleaning is performed.
+func FormatJSON(data []byte) (*FormatResult, error) {
+	obj, err := decodeJSON(data)
+	if err != nil {
+		return nil, err
+	}
 
-	var obj map[string]any
-	if err := dec.Decode(&obj); err != nil {
-		return nil, fmt.Errorf("invalid JSON: %w", err)
+	stats := &Stats{SizeBefore: len(data)}
+	sortArraysRecursive(obj)
+
+	out, err := encodeJSON(obj)
+	if err != nil {
+		return nil, err
+	}
+	stats.SizeAfter = len(out)
+
+	return &FormatResult{Data: out, Stats: stats}, nil
+}
+
+func (f *Formatter) Format(data []byte) (*FormatResult, error) {
+	obj, err := decodeJSON(data)
+	if err != nil {
+		return nil, err
 	}
 
 	stats := &Stats{SizeBefore: len(data)}
@@ -73,18 +93,35 @@ func (f *Formatter) Format(data []byte) (*FormatResult, error) {
 	cj.cleanGitHubRepoPaths(stats)
 	sortArraysRecursive(cj.data)
 
+	out, err := encodeJSON(cj.data)
+	if err != nil {
+		return nil, err
+	}
+	stats.SizeAfter = len(out)
+
+	return &FormatResult{Data: out, Stats: stats}, nil
+}
+
+func decodeJSON(data []byte) (map[string]any, error) {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+
+	var obj map[string]any
+	if err := dec.Decode(&obj); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+	return obj, nil
+}
+
+func encodeJSON(obj map[string]any) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(cj.data); err != nil {
+	if err := enc.Encode(obj); err != nil {
 		return nil, fmt.Errorf("encoding JSON: %w", err)
 	}
-
-	out := buf.Bytes()
-	stats.SizeAfter = len(out)
-
-	return &FormatResult{Data: out, Stats: stats}, nil
+	return buf.Bytes(), nil
 }
 
 type claudeJSON struct {

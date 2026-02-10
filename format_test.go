@@ -1,6 +1,7 @@
 package ccfmt
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 )
@@ -180,6 +181,101 @@ func TestFormat(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFormatJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:  "settings-style key sorting",
+			input: `{"permissions":{"allow":["Bash","Read"]},"env":{"Z_VAR":"z","A_VAR":"a"},"hooks":{"preToolUse":[]}}`,
+			want:  "{\n  \"env\": {\n    \"A_VAR\": \"a\",\n    \"Z_VAR\": \"z\"\n  },\n  \"hooks\": {\n    \"preToolUse\": []\n  },\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\"\n    ]\n  }\n}\n",
+		},
+		{
+			name:  "sort string arrays in permissions",
+			input: `{"permissions":{"allow":["Write","Bash","Read"],"deny":["mcp__dangerous","mcp__admin"]}}`,
+			want:  "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\",\n      \"Write\"\n    ],\n    \"deny\": [\n      \"mcp__admin\",\n      \"mcp__dangerous\"\n    ]\n  }\n}\n",
+		},
+		{
+			name:  "no projects or githubRepoPaths added",
+			input: `{"apiKey":"test"}`,
+			want:  "{\n  \"apiKey\": \"test\"\n}\n",
+		},
+		{
+			name:    "invalid JSON",
+			input:   `{broken`,
+			wantErr: true,
+		},
+		{
+			name:  "empty object",
+			input: `{}`,
+			want:  "{}\n",
+		},
+		{
+			name:  "nested objects sorted recursively",
+			input: `{"z":{"b":2,"a":1},"a":{"d":4,"c":3}}`,
+			want:  "{\n  \"a\": {\n    \"c\": 3,\n    \"d\": 4\n  },\n  \"z\": {\n    \"a\": 1,\n    \"b\": 2\n  }\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := FormatJSON([]byte(tt.input))
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			got := string(result.Data)
+			if got != tt.want {
+				t.Errorf("mismatch:\ngot:\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatJSONDoesNotAddProjects(t *testing.T) {
+	input := `{"key": "value"}`
+	result, err := FormatJSON([]byte(input))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	got := string(result.Data)
+	if contains := "projects"; len(got) > 0 && containsKey(got, contains) {
+		t.Errorf("FormatJSON should not add %q key", contains)
+	}
+	if contains := "githubRepoPaths"; containsKey(got, contains) {
+		t.Errorf("FormatJSON should not add %q key", contains)
+	}
+}
+
+func containsKey(jsonStr, key string) bool {
+	return len(jsonStr) > 0 && len(key) > 0 &&
+		json.Valid([]byte(jsonStr)) &&
+		bytes.Contains([]byte(jsonStr), []byte(`"`+key+`"`))
+}
+
+func TestStatsChanged(t *testing.T) {
+	t.Run("changed", func(t *testing.T) {
+		s := &Stats{SizeBefore: 100, SizeAfter: 90}
+		if !s.Changed() {
+			t.Error("expected Changed() to return true")
+		}
+	})
+	t.Run("unchanged", func(t *testing.T) {
+		s := &Stats{SizeBefore: 100, SizeAfter: 100}
+		if s.Changed() {
+			t.Error("expected Changed() to return false")
+		}
+	})
 }
 
 func TestFormatStats(t *testing.T) {

@@ -147,7 +147,8 @@ func (c *CLI) formatFile(tf targetFile) (*fileResult, error) {
 
 func printResult(w io.Writer, r *fileResult, single bool) {
 	if single {
-		fmt.Fprint(w, r.result.Stats.Summary(r.backupPath))
+		fmt.Fprint(w, r.result.Stats.Summary())
+		printBackup(w, r.backupPath, "")
 		return
 	}
 	if bytes.Equal(r.original, r.result.Data) {
@@ -155,10 +156,17 @@ func printResult(w io.Writer, r *fileResult, single bool) {
 		return
 	}
 	fmt.Fprintf(w, "%s:\n", r.path)
-	for _, line := range splitLines(r.result.Stats.Summary(r.backupPath)) {
+	for _, line := range splitLines(r.result.Stats.Summary()) {
 		fmt.Fprintf(w, "  %s\n", line)
 	}
+	printBackup(w, r.backupPath, "  ")
 	fmt.Fprintln(w)
+}
+
+func printBackup(w io.Writer, backupPath, indent string) {
+	if backupPath != "" {
+		fmt.Fprintf(w, "%sBackup: %s\n", indent, backupPath)
+	}
 }
 
 func splitLines(s string) []string {

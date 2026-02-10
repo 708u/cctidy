@@ -254,18 +254,16 @@ func TestSettingsJSONFormatterDoesNotAddProjects(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	got := string(result.Data)
-	if contains := "projects"; len(got) > 0 && containsKey(got, contains) {
-		t.Errorf("SettingsJSONFormatter should not add %q key", contains)
-	}
-	if contains := "githubRepoPaths"; containsKey(got, contains) {
-		t.Errorf("SettingsJSONFormatter should not add %q key", contains)
-	}
+	assertNoKey(t, got, "projects")
+	assertNoKey(t, got, "githubRepoPaths")
 }
 
-func containsKey(jsonStr, key string) bool {
-	return len(jsonStr) > 0 && len(key) > 0 &&
-		json.Valid([]byte(jsonStr)) &&
-		bytes.Contains([]byte(jsonStr), []byte(`"`+key+`"`))
+func assertNoKey(t *testing.T, jsonStr, key string) {
+	t.Helper()
+	if len(jsonStr) > 0 && json.Valid([]byte(jsonStr)) &&
+		bytes.Contains([]byte(jsonStr), []byte(`"`+key+`"`)) {
+		t.Errorf("should not contain key %q", key)
+	}
 }
 
 func TestFormatStats(t *testing.T) {

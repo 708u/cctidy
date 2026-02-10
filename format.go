@@ -16,7 +16,7 @@ type FormatResult struct {
 
 // Summarizer produces a human-readable summary of formatting results.
 type Summarizer interface {
-	Summary(backupPath string) string
+	Summary() string
 }
 
 // ClaudeJSONFormatterStats holds statistics for ~/.claude.json formatting.
@@ -38,7 +38,7 @@ func (s *ClaudeJSONFormatterStats) RepoPathsRemoved() int {
 	return s.RepoBefore - s.RepoAfter
 }
 
-func (s *ClaudeJSONFormatterStats) Summary(backupPath string) string {
+func (s *ClaudeJSONFormatterStats) Summary() string {
 	var b strings.Builder
 	if s.ProjectsRemoved() > 0 {
 		fmt.Fprintf(&b, "Projects: %d -> %d (removed %d)\n",
@@ -50,9 +50,6 @@ func (s *ClaudeJSONFormatterStats) Summary(backupPath string) string {
 	}
 	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
-	if backupPath != "" {
-		fmt.Fprintf(&b, "Backup: %s\n", backupPath)
-	}
 	return b.String()
 }
 
@@ -62,14 +59,9 @@ type SettingsJSONFormatterStats struct {
 	SizeAfter  int
 }
 
-func (s *SettingsJSONFormatterStats) Summary(backupPath string) string {
-	var b strings.Builder
-	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
+func (s *SettingsJSONFormatterStats) Summary() string {
+	return fmt.Sprintf("Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
-	if backupPath != "" {
-		fmt.Fprintf(&b, "Backup: %s\n", backupPath)
-	}
-	return b.String()
 }
 
 // ClaudeJSONFormatter formats ~/.claude.json with path cleaning

@@ -239,6 +239,24 @@ func TestRunSingleTarget(t *testing.T) {
 		}
 	})
 
+	t.Run("no temp files remain after write", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		file := filepath.Join(dir, ".claude.json")
+		os.WriteFile(file, []byte(`{"z": 1}`), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{Target: file, checker: alwaysTrue{}, w: &buf}
+		if err := cli.Run(dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		matches, _ := filepath.Glob(filepath.Join(dir, ".claude.json.tmp.*"))
+		if len(matches) != 0 {
+			t.Errorf("temp files remain: %v", matches)
+		}
+	})
+
 	t.Run("preserves file permissions", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()

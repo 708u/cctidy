@@ -60,6 +60,11 @@ func main() {
 		kong.Vars{"version": version},
 	)
 
+	if cli.Check && (cli.Backup || cli.DryRun) {
+		fmt.Fprintf(os.Stderr, "cctidy: --check cannot be combined with --backup or --dry-run\n")
+		os.Exit(2)
+	}
+
 	if err := cli.Run(home); err != nil {
 		if errors.Is(err, errUnformatted) {
 			os.Exit(1)
@@ -70,9 +75,6 @@ func main() {
 }
 
 func (c *CLI) Run(home string) error {
-	if c.Check && (c.Backup || c.DryRun) {
-		return fmt.Errorf("--check cannot be combined with --backup or --dry-run")
-	}
 	return c.runTargets(c.resolveTargets(home))
 }
 

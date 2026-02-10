@@ -447,40 +447,6 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("check with backup is rejected", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		file := filepath.Join(dir, "settings.json")
-		os.WriteFile(file, []byte(`{}`), 0o644)
-
-		var buf bytes.Buffer
-		cli := &CLI{Target: file, Check: true, Backup: true, checker: alwaysTrue{}, w: &buf}
-		err := cli.Run(dir)
-		if err == nil {
-			t.Fatal("expected error for --check with --backup")
-		}
-		if errors.Is(err, errUnformatted) {
-			t.Error("should not be errUnformatted")
-		}
-	})
-
-	t.Run("check with dry-run is rejected", func(t *testing.T) {
-		t.Parallel()
-		dir := t.TempDir()
-		file := filepath.Join(dir, "settings.json")
-		os.WriteFile(file, []byte(`{}`), 0o644)
-
-		var buf bytes.Buffer
-		cli := &CLI{Target: file, Check: true, DryRun: true, checker: alwaysTrue{}, w: &buf}
-		err := cli.Run(dir)
-		if err == nil {
-			t.Fatal("expected error for --check with --dry-run")
-		}
-		if errors.Is(err, errUnformatted) {
-			t.Error("should not be errUnformatted")
-		}
-	})
-
 	t.Run("missing file returns error", func(t *testing.T) {
 		t.Parallel()
 		var buf bytes.Buffer

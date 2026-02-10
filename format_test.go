@@ -2,13 +2,15 @@ package cctidy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
 type pathSet map[string]bool
 
-func (s pathSet) Exists(p string) bool { return s[p] }
+func (s pathSet) Exists(_ context.Context, p string) bool { return s[p] }
 
 func checkerFor(paths ...string) pathSet {
 	s := make(pathSet, len(paths))
@@ -20,11 +22,11 @@ func checkerFor(paths ...string) pathSet {
 
 type alwaysTrue struct{}
 
-func (alwaysTrue) Exists(string) bool { return true }
+func (alwaysTrue) Exists(context.Context, string) bool { return true }
 
 type alwaysFalse struct{}
 
-func (alwaysFalse) Exists(string) bool { return false }
+func (alwaysFalse) Exists(context.Context, string) bool { return false }
 
 func TestFormat(t *testing.T) {
 	t.Parallel()
@@ -167,7 +169,7 @@ func TestFormat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			f := NewClaudeJSONFormatter(tt.checker)
-			result, err := f.Format([]byte(tt.input))
+			result, err := f.Format(t.Context(), []byte(tt.input))
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -228,7 +230,7 @@ func TestSettingsJSONFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := NewSettingsJSONFormatter().Format([]byte(tt.input))
+			result, err := NewSettingsJSONFormatter().Format(t.Context(), []byte(tt.input))
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -249,7 +251,7 @@ func TestSettingsJSONFormatter(t *testing.T) {
 func TestSettingsJSONFormatterDoesNotAddProjects(t *testing.T) {
 	t.Parallel()
 	input := `{"key": "value"}`
-	result, err := NewSettingsJSONFormatter().Format([]byte(input))
+	result, err := NewSettingsJSONFormatter().Format(t.Context(), []byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -270,7 +272,7 @@ func TestFormatStats(t *testing.T) {
 	t.Parallel()
 	input := `{"projects": {"/exists": {}, "/gone": {}}, "githubRepoPaths": {"r": ["/exists", "/gone"]}}`
 	f := NewClaudeJSONFormatter(checkerFor("/exists"))
-	result, err := f.Format([]byte(input))
+	result, err := f.Format(t.Context(), []byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -306,11 +308,27 @@ func TestFormatComma(t *testing.T) {
 	}
 }
 
+func TestFormatRespectsContextCancellation(t *testing.T) {
+	t.Parallel()
+	input := `{"projects": {"/a": {}, "/b": {}}, "githubRepoPaths": {"r": ["/a"]}}`
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	f := NewClaudeJSONFormatter(alwaysTrue{})
+	_, err := f.Format(ctx, []byte(input))
+	if err == nil {
+		t.Fatal("expected error from canceled context, got nil")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got: %v", err)
+	}
+}
+
 func TestFormatOutputValidity(t *testing.T) {
 	t.Parallel()
 	input := `{"key": "value", "num": 42, "arr": [3, 1, 2]}`
 	f := NewClaudeJSONFormatter(alwaysTrue{})
-	result, err := f.Format([]byte(input))
+	result, err := f.Format(t.Context(), []byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

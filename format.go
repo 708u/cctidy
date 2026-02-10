@@ -2,6 +2,7 @@ package cctidy
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -69,10 +70,10 @@ func NewClaudeJSONFormatter(checker PathChecker) *ClaudeJSONFormatter {
 
 // PathChecker checks whether a filesystem path exists.
 type PathChecker interface {
-	Exists(path string) bool
+	Exists(ctx context.Context, path string) bool
 }
 
-func (f *ClaudeJSONFormatter) Format(data []byte) (*FormatResult, error) {
+func (f *ClaudeJSONFormatter) Format(ctx context.Context, data []byte) (*FormatResult, error) {
 	obj, err := decodeJSON(data)
 	if err != nil {
 		return nil, err
@@ -80,8 +81,12 @@ func (f *ClaudeJSONFormatter) Format(data []byte) (*FormatResult, error) {
 
 	stats := &ClaudeJSONFormatterStats{SizeBefore: len(data)}
 	cj := &claudeJSONData{data: obj, checker: f.PathChecker}
-	cj.cleanProjects(stats)
-	cj.cleanGitHubRepoPaths(stats)
+	if err := cj.cleanProjects(ctx, stats); err != nil {
+		return nil, err
+	}
+	if err := cj.cleanGitHubRepoPaths(ctx, stats); err != nil {
+		return nil, err
+	}
 
 	out, err := encodeJSON(cj.data)
 	if err != nil {
@@ -97,35 +102,39 @@ type claudeJSONData struct {
 	checker PathChecker
 }
 
-func (c *claudeJSONData) cleanProjects(stats *ClaudeJSONFormatterStats) {
+func (c *claudeJSONData) cleanProjects(ctx context.Context, stats *ClaudeJSONFormatterStats) error {
 	raw, ok := c.data["projects"]
 	if !ok {
 		c.data["projects"] = map[string]any{}
-		return
+		return nil
 	}
 	projects, ok := raw.(map[string]any)
 	if !ok {
-		return
+		return nil
 	}
 
 	stats.ProjectsBefore = len(projects)
 	for p := range projects {
-		if !c.checker.Exists(p) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !c.checker.Exists(ctx, p) {
 			delete(projects, p)
 		}
 	}
 	stats.ProjectsAfter = len(projects)
+	return nil
 }
 
-func (c *claudeJSONData) cleanGitHubRepoPaths(stats *ClaudeJSONFormatterStats) {
+func (c *claudeJSONData) cleanGitHubRepoPaths(ctx context.Context, stats *ClaudeJSONFormatterStats) error {
 	raw, ok := c.data["githubRepoPaths"]
 	if !ok {
 		c.data["githubRepoPaths"] = map[string]any{}
-		return
+		return nil
 	}
 	repos, ok := raw.(map[string]any)
 	if !ok {
-		return
+		return nil
 	}
 
 	totalBefore := 0
@@ -140,6 +149,9 @@ func (c *claudeJSONData) cleanGitHubRepoPaths(stats *ClaudeJSONFormatterStats) {
 
 	reposBefore := len(repos)
 	for repo, v := range repos {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		paths, ok := v.([]any)
 		if !ok {
 			continue
@@ -150,7 +162,7 @@ func (c *claudeJSONData) cleanGitHubRepoPaths(stats *ClaudeJSONFormatterStats) {
 			if !ok {
 				continue
 			}
-			if c.checker.Exists(s) {
+			if c.checker.Exists(ctx, s) {
 				existing = append(existing, s)
 			}
 		}
@@ -171,6 +183,7 @@ func (c *claudeJSONData) cleanGitHubRepoPaths(stats *ClaudeJSONFormatterStats) {
 	}
 	stats.RepoAfter = totalAfter
 	stats.RemovedRepos = reposBefore - len(repos)
+	return nil
 }
 
 // SettingsJSONFormatter formats settings.json / settings.local.json
@@ -180,7 +193,7 @@ type SettingsJSONFormatter struct{}
 
 func NewSettingsJSONFormatter() *SettingsJSONFormatter { return &SettingsJSONFormatter{} }
 
-func (s *SettingsJSONFormatter) Format(data []byte) (*FormatResult, error) {
+func (s *SettingsJSONFormatter) Format(_ context.Context, data []byte) (*FormatResult, error) {
 	obj, err := decodeJSON(data)
 	if err != nil {
 		return nil, err

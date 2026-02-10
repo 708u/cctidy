@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/708u/cctidy"
@@ -30,7 +33,7 @@ type CLI struct {
 }
 
 type Formatter interface {
-	Format([]byte) (*cctidy.FormatResult, error)
+	Format(context.Context, []byte) (*cctidy.FormatResult, error)
 }
 
 type targetFile struct {
@@ -46,10 +49,19 @@ type fileResult struct {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
+	ctx, stop := signal.NotifyContext(
+		context.Background(), os.Interrupt, syscall.SIGTERM,
+	)
+	defer stop()
+
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	cli := CLI{
@@ -62,29 +74,30 @@ func main() {
 
 	if cli.Check && (cli.Backup || cli.DryRun) {
 		fmt.Fprintf(os.Stderr, "cctidy: --check cannot be combined with --backup or --dry-run\n")
-		os.Exit(2)
+		return 2
 	}
 
-	if err := cli.Run(home); err != nil {
+	if err := cli.Run(ctx, home); err != nil {
 		if errors.Is(err, errUnformatted) {
-			os.Exit(1)
+			return 1
 		}
 		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
-func (c *CLI) Run(home string) error {
-	return c.runTargets(c.resolveTargets(home))
+func (c *CLI) Run(ctx context.Context, home string) error {
+	return c.runTargets(ctx, c.resolveTargets(home))
 }
 
-func (c *CLI) checkFile(tf targetFile) (bool, error) {
+func (c *CLI) checkFile(ctx context.Context, tf targetFile) (bool, error) {
 	data, err := os.ReadFile(tf.path)
 	if err != nil {
 		return false, err
 	}
 
-	result, err := tf.formatter.Format(data)
+	result, err := tf.formatter.Format(ctx, data)
 	if err != nil {
 		return false, fmt.Errorf("formatting %s: %w", tf.path, err)
 	}
@@ -92,12 +105,15 @@ func (c *CLI) checkFile(tf targetFile) (bool, error) {
 	return bytes.Equal(data, result.Data), nil
 }
 
-func (c *CLI) checkTargets(targets []targetFile) error {
+func (c *CLI) checkTargets(ctx context.Context, targets []targetFile) error {
 	single := len(targets) == 1
 	hasUnformatted := false
 
 	for _, tf := range targets {
-		formatted, err := c.checkFile(tf)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		formatted, err := c.checkFile(ctx, tf)
 		if err != nil {
 			if single || !os.IsNotExist(err) {
 				return err
@@ -118,14 +134,17 @@ func (c *CLI) checkTargets(targets []targetFile) error {
 	return nil
 }
 
-func (c *CLI) runTargets(targets []targetFile) error {
+func (c *CLI) runTargets(ctx context.Context, targets []targetFile) error {
 	if c.Check {
-		return c.checkTargets(targets)
+		return c.checkTargets(ctx, targets)
 	}
 	single := len(targets) == 1
 
 	for _, tf := range targets {
-		r, err := c.formatFile(tf)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		r, err := c.formatFile(ctx, tf)
 		if err != nil {
 			if single || !os.IsNotExist(err) {
 				return err
@@ -166,7 +185,7 @@ func (c *CLI) defaultTargets(home string) []targetFile {
 	}
 }
 
-func (c *CLI) formatFile(tf targetFile) (*fileResult, error) {
+func (c *CLI) formatFile(ctx context.Context, tf targetFile) (*fileResult, error) {
 	info, err := os.Stat(tf.path)
 	if err != nil {
 		return nil, err
@@ -178,7 +197,7 @@ func (c *CLI) formatFile(tf targetFile) (*fileResult, error) {
 		return nil, fmt.Errorf("reading %s: %w", tf.path, err)
 	}
 
-	result, err := tf.formatter.Format(data)
+	result, err := tf.formatter.Format(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("formatting %s: %w", tf.path, err)
 	}
@@ -299,7 +318,7 @@ func writeFile(path string, data []byte, perm os.FileMode) error {
 
 type osPathChecker struct{}
 
-func (o *osPathChecker) Exists(path string) bool {
+func (o *osPathChecker) Exists(_ context.Context, path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }

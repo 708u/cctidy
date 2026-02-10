@@ -192,7 +192,7 @@ func (c *CLI) formatFile(tf targetFile) (*fileResult, error) {
 				return nil, fmt.Errorf("creating backup: %w", err)
 			}
 		}
-		if err := os.WriteFile(tf.path, result.Data, perm); err != nil {
+		if err := writeFile(tf.path, result.Data, perm); err != nil {
 			return nil, fmt.Errorf("writing %s: %w", tf.path, err)
 		}
 	}
@@ -248,6 +248,53 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
+}
+
+func writeFile(path string, data []byte, perm os.FileMode) error {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("resolving path: %w", err)
+	}
+	if err == nil {
+		path = resolved
+	}
+
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".tmp.*")
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+
+	closed := false
+	defer func() {
+		if !closed {
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
+		}
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		return fmt.Errorf("writing temp file: %w", err)
+	}
+
+	if err := tmp.Chmod(perm); err != nil {
+		return fmt.Errorf("setting permissions: %w", err)
+	}
+
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("syncing temp file: %w", err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("closing temp file: %w", err)
+	}
+	closed = true
+
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("renaming temp file: %w", err)
+	}
+
+	return nil
 }
 
 type osPathChecker struct{}

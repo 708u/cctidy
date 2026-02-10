@@ -10,7 +10,7 @@ before:
     - go mod tidy
 
 builds:
-  - main: ./cmd/
+  - main: ./cmd/cctidy/
     binary: cctidy
     env:
       - CGO_ENABLED=0

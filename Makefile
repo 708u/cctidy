@@ -1,10 +1,10 @@
 .PHONY: build install test lint fmt
 
 build:
-	go build -o cctidy ./cmd/
+	go build -o cctidy ./cmd/cctidy/
 
 install:
-	go install ./cmd/
+	go install ./cmd/cctidy/
 
 test:
 	go test -tags integration ./...

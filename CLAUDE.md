@@ -33,7 +33,7 @@ make install  # Install to $GOPATH/bin
 make test     # Run all tests (unit + integration)
 
 # Update golden files for integration tests
-go test -tags integration ./cmd/ -update
+go test -tags integration ./cmd/cctidy/ -update
 ```
 
 ## Architecture
@@ -48,17 +48,17 @@ Two packages:
     without path cleaning. Used for settings files.
   - Both return `*FormatResult` (formatted bytes +
     `Summarizer` interface for stats).
-- **`cmd/`** - CLI entrypoint (`package main`). Uses kong
-  for flag parsing. Processes multiple target files with
-  `runTargets()` / `formatFile()`.
+- **`cmd/cctidy/`** - CLI entrypoint (`package main`).
+  Uses kong for flag parsing. Processes multiple target
+  files with `runTargets()` / `formatFile()`.
 
 `PathChecker` interface enables testing without real
 filesystem access. Tests use `alwaysTrue`, `alwaysFalse`,
 and `pathSet` stubs.
 
 Integration tests use `//go:build integration` tag and
-live in `cmd/integration_test.go`. Golden test data is in
-`cmd/testdata/`.
+live in `cmd/cctidy/integration_test.go`. Golden test
+data is in `cmd/cctidy/testdata/`.
 
 ## CLI Usage
 

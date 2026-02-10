@@ -72,15 +72,9 @@ cctidy -v           # Show formatting details
 
 ## Marketplace Plugin
 
-`external/claude-code/plugins/cctidy/` に Claude Code
-marketplace plugin を配置している。
-
-- `hooks/hooks.json` - SessionStart で `cctidy` を
-  実行する hook 定義
-- `.claude-plugin/plugin.json` - plugin メタデータ
-
-リポジトリルートの `.claude-plugin/marketplace.json` が
-marketplace 用のエントリポイントとなる。
+`external/claude-code/plugins/cctidy/` contains the
+Claude Code marketplace plugin. It runs `cctidy` on
+SessionStart via hooks.
 
 ## Pull Requests
 

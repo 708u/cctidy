@@ -40,6 +40,16 @@ cctidy --dry-run    # Show changes without writing
 cctidy --backup     # Create backup before writing
 ```
 
+## Claude Code Plugin
+
+A Claude Code plugin is available that automatically
+formats config files on session start.
+
+```txt
+/plugin marketplace add 708u/cctidy
+/plugin install cctidy@708u-cctidy
+```
+
 ## Contributing
 
 Write all PR titles and descriptions in English.

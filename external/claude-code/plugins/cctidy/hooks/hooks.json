@@ -11,17 +11,6 @@
           }
         ]
       }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cctidy",
-            "timeout": 30
-          }
-        ]
-      }
     ]
   }
 }

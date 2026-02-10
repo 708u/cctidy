@@ -71,9 +71,8 @@ func isClaudeJSON(path string) bool {
 
 type fileResult struct {
 	path       string
-	stats      *ccfmt.Stats
+	result     *ccfmt.FormatResult
 	backupPath string
-	skipped    bool
 }
 
 func runAll(cli *CLI, targets []targetFile, checker ccfmt.PathChecker, w io.Writer) error {
@@ -132,22 +131,22 @@ func runOne(cli *CLI, tf targetFile, checker ccfmt.PathChecker) (*fileResult, er
 
 	return &fileResult{
 		path:       tf.path,
-		stats:      result.Stats,
+		result:     result,
 		backupPath: backupPath,
 	}, nil
 }
 
 func printResult(w io.Writer, r *fileResult, single bool) {
 	if single {
-		fmt.Fprint(w, r.stats.Summary(r.backupPath))
+		fmt.Fprint(w, r.result.Stats.Summary(r.backupPath))
 		return
 	}
-	if !r.stats.Changed() {
+	if !r.result.Changed() {
 		fmt.Fprintf(w, "%s:\n  (no changes)\n\n", r.path)
 		return
 	}
 	fmt.Fprintf(w, "%s:\n", r.path)
-	for _, line := range splitLines(r.stats.Summary(r.backupPath)) {
+	for _, line := range splitLines(r.result.Stats.Summary(r.backupPath)) {
 		fmt.Fprintf(w, "  %s\n", line)
 	}
 	fmt.Fprintln(w)

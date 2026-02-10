@@ -48,13 +48,27 @@ func (s *ClaudeJSONFormatterStats) Summary() string {
 
 // SettingsJSONFormatterStats holds statistics for settings.json formatting.
 type SettingsJSONFormatterStats struct {
-	SizeBefore int
-	SizeAfter  int
+	SizeBefore    int
+	SizeAfter     int
+	PrunedAllow   int
+	PrunedDeny    int
+	PrunedAsk     int
+	RelativeWarns []string
 }
 
 func (s *SettingsJSONFormatterStats) Summary() string {
-	return fmt.Sprintf("Size: %s -> %s bytes\n",
+	var b strings.Builder
+	pruned := s.PrunedAllow + s.PrunedDeny + s.PrunedAsk
+	if pruned > 0 {
+		fmt.Fprintf(&b, "Pruned: %d allow, %d deny, %d ask entries\n",
+			s.PrunedAllow, s.PrunedDeny, s.PrunedAsk)
+	}
+	for _, w := range s.RelativeWarns {
+		fmt.Fprintf(&b, "Relative path (skipped): %s\n", w)
+	}
+	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
+	return b.String()
 }
 
 // ClaudeJSONFormatter formats ~/.claude.json with path cleaning
@@ -188,15 +202,29 @@ func (c *claudeJSONData) cleanGitHubRepoPaths(ctx context.Context, stats *Claude
 
 // SettingsJSONFormatter formats settings.json / settings.local.json
 // by sorting keys recursively and sorting homogeneous arrays.
-// No path cleaning is performed.
-type SettingsJSONFormatter struct{}
+// When PathChecker is provided, dead permission paths are pruned.
+type SettingsJSONFormatter struct {
+	PathChecker PathChecker
+}
 
-func NewSettingsJSONFormatter() *SettingsJSONFormatter { return &SettingsJSONFormatter{} }
+func NewSettingsJSONFormatter(checker PathChecker) *SettingsJSONFormatter {
+	return &SettingsJSONFormatter{PathChecker: checker}
+}
 
-func (s *SettingsJSONFormatter) Format(_ context.Context, data []byte) (*FormatResult, error) {
+func (s *SettingsJSONFormatter) Format(ctx context.Context, data []byte) (*FormatResult, error) {
 	obj, err := decodeJSON(data)
 	if err != nil {
 		return nil, err
+	}
+
+	stats := &SettingsJSONFormatterStats{SizeBefore: len(data)}
+
+	if s.PathChecker != nil {
+		pr := prunePermissions(ctx, obj, s.PathChecker)
+		stats.PrunedAllow = pr.PrunedAllow
+		stats.PrunedDeny = pr.PrunedDeny
+		stats.PrunedAsk = pr.PrunedAsk
+		stats.RelativeWarns = pr.RelativeWarns
 	}
 
 	sortArraysRecursive(obj)
@@ -206,10 +234,8 @@ func (s *SettingsJSONFormatter) Format(_ context.Context, data []byte) (*FormatR
 		return nil, err
 	}
 
-	return &FormatResult{
-		Data:  out,
-		Stats: &SettingsJSONFormatterStats{SizeBefore: len(data), SizeAfter: len(out)},
-	}, nil
+	stats.SizeAfter = len(out)
+	return &FormatResult{Data: out, Stats: stats}, nil
 }
 
 func decodeJSON(data []byte) (map[string]any, error) {

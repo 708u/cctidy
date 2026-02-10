@@ -60,7 +60,7 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := cctidy.NewSettingsJSONFormatter().Format(t.Context(), input)
+	result, err := cctidy.NewSettingsJSONFormatter(nil).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -346,7 +346,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -369,8 +369,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -512,8 +512,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -533,8 +533,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		err := cli.runTargets(t.Context(), targets)
 		if !errors.Is(err, errUnformatted) {
@@ -553,8 +553,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: missing, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: missing, formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -574,8 +574,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(nil)},
 		}
 		cli.runTargets(t.Context(), targets)
 
@@ -658,4 +658,100 @@ func TestResolveTargets(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestIntegrationPrune(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	existingPath := filepath.Join(dir, "project-a")
+	os.Mkdir(existingPath, 0o755)
+	deadPath := filepath.Join(dir, "gone-project")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + existingPath + ` status)",
+      "Bash(git -C ` + deadPath + ` status)",
+      "Read",
+      "Write"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	if !strings.Contains(got, existingPath) {
+		t.Error("existing path entry was removed")
+	}
+	if strings.Contains(got, deadPath) {
+		t.Error("dead path entry was not removed")
+	}
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-path entry was removed")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Pruned:") {
+		t.Errorf("expected pruned stats in output: %s", output)
+	}
+}
+
+func TestPruneCheck(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deadPath := filepath.Join(dir, "gone-project")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Check: true, checker: &osPathChecker{}, w: &buf}
+	err := cli.Run(t.Context(), dir)
+	if !errors.Is(err, errUnformatted) {
+		t.Fatalf("expected errUnformatted, got: %v", err)
+	}
+}
+
+func TestPruneDryRun(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deadPath := filepath.Join(dir, "gone-project")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, DryRun: true, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	if string(data) != input {
+		t.Error("file was modified in dry-run mode")
+	}
 }

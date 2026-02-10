@@ -163,7 +163,7 @@ func (c *CLI) runTargets(ctx context.Context, targets []targetFile) error {
 
 func (c *CLI) resolveTargets(home string) []targetFile {
 	if c.Target != "" {
-		var f Formatter = cctidy.NewSettingsJSONFormatter()
+		var f Formatter = cctidy.NewSettingsJSONFormatter(c.checker)
 		if filepath.Base(c.Target) == ".claude.json" {
 			f = cctidy.NewClaudeJSONFormatter(c.checker)
 		}
@@ -175,7 +175,7 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 func (c *CLI) defaultTargets(home string) []targetFile {
 	cwd, _ := os.Getwd()
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
-	settings := cctidy.NewSettingsJSONFormatter()
+	settings := cctidy.NewSettingsJSONFormatter(c.checker)
 	return []targetFile{
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
 		{path: filepath.Join(home, ".claude", "settings.json"), formatter: settings},

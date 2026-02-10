@@ -23,6 +23,8 @@ It performs:
     (`githubRepoPaths` key), including cleanup of empty
     repo keys
 - For settings files only:
+  - Pruning of permission entries (allow/deny/ask) that
+    reference non-existent absolute paths
   - Sorting of homogeneous arrays (string, number, bool)
 
 ## Commands

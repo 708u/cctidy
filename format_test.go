@@ -317,7 +317,7 @@ func TestFormatRespectsContextCancellation(t *testing.T) {
 	f := NewClaudeJSONFormatter(alwaysTrue{})
 	_, err := f.Format(ctx, []byte(input))
 	if err == nil {
-		t.Fatal("expected error from cancelled context, got nil")
+		t.Fatal("expected error from canceled context, got nil")
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got: %v", err)

@@ -49,6 +49,10 @@ type fileResult struct {
 }
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	ctx, stop := signal.NotifyContext(
 		context.Background(), os.Interrupt, syscall.SIGTERM,
 	)
@@ -57,7 +61,7 @@ func main() {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	cli := CLI{
@@ -70,16 +74,17 @@ func main() {
 
 	if cli.Check && (cli.Backup || cli.DryRun) {
 		fmt.Fprintf(os.Stderr, "cctidy: --check cannot be combined with --backup or --dry-run\n")
-		os.Exit(2)
+		return 2
 	}
 
 	if err := cli.Run(ctx, home); err != nil {
 		if errors.Is(err, errUnformatted) {
-			os.Exit(1)
+			return 1
 		}
 		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
-		os.Exit(2)
+		return 2
 	}
+	return 0
 }
 
 func (c *CLI) Run(ctx context.Context, home string) error {

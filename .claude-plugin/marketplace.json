@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "cctidy",
-      "description": "Auto-format Claude Code config files on session start/end",
+      "description": "Auto-format Claude Code config files on session start",
       "version": "0.1.0",
       "category": "productivity",
       "keywords": [

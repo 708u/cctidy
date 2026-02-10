@@ -67,3 +67,15 @@ cctidy -t FILE      # Format a specific file only
 cctidy --dry-run    # Show changes without writing
 cctidy --backup     # Create backup before writing
 ```
+
+## Marketplace Plugin
+
+`external/claude-code/plugins/cctidy/` に Claude Code
+marketplace plugin を配置している。
+
+- `hooks/hooks.json` - SessionStart / SessionEnd で
+  `cctidy` を実行する hook 定義
+- `.claude-plugin/plugin.json` - plugin メタデータ
+
+リポジトリルートの `.claude-plugin/marketplace.json` が
+marketplace 用のエントリポイントとなる。

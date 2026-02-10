@@ -1,0 +1,12 @@
+{
+  "name": "cctidy",
+  "version": "0.1.0",
+  "description": "Auto-format Claude Code config files on session start/end",
+  "author": {
+    "name": "708u"
+  },
+  "license": "MIT",
+  "keywords": [
+    "claude-code", "config", "formatter", "json", "cctidy"
+  ]
+}

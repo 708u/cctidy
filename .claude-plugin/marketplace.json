@@ -1,0 +1,22 @@
+{
+  "name": "cctidy-plugins",
+  "owner": {
+    "name": "708u"
+  },
+  "metadata": {
+    "description": "cctidy CLI plugins"
+  },
+  "plugins": [
+    {
+      "name": "cctidy",
+      "description": "Auto-format Claude Code config files on session start",
+      "version": "0.1.0",
+      "category": "productivity",
+      "keywords": [
+        "claude-code", "config", "formatter", "json",
+        "cctidy"
+      ],
+      "source": "./external/claude-code/plugins/cctidy"
+    }
+  ]
+}

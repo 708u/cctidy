@@ -70,6 +70,12 @@ cctidy --backup     # Create backup before writing
 cctidy -v           # Show formatting details
 ```
 
+## Marketplace Plugin
+
+`external/claude-code/plugins/cctidy/` contains the
+Claude Code marketplace plugin. It runs `cctidy` on
+SessionStart via hooks.
+
 ## Pull Requests
 
 Write all PR titles and descriptions in English.

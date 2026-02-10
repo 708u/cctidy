@@ -1,0 +1,16 @@
+{
+  "description": "Format Claude Code config files with cctidy",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cctidy",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

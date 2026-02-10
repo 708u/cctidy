@@ -247,7 +247,7 @@ func TestRunSingleTarget(t *testing.T) {
 
 		var buf bytes.Buffer
 		cli := &CLI{Target: file, checker: alwaysTrue{}, w: &buf}
-		if err := cli.Run(dir); err != nil {
+		if err := cli.Run(t.Context(), dir); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 

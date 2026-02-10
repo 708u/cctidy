@@ -18,6 +18,7 @@ type CLI struct {
 	Target  string           `help:"Path to a specific file to format." short:"t" name:"target"`
 	Backup  bool             `help:"Create backup before writing."`
 	DryRun  bool             `help:"Show changes without writing." name:"dry-run"`
+	Verbose bool             `help:"Show formatting details." short:"v"`
 	Version kong.VersionFlag `help:"Print version."`
 
 	checker cctidy.PathChecker
@@ -74,10 +75,14 @@ func (c *CLI) runTargets(targets []targetFile) error {
 			if single || !os.IsNotExist(err) {
 				return err
 			}
-			fmt.Fprintf(c.w, "%s: skipped (not found)\n\n", tf.path)
+			if c.Verbose {
+				fmt.Fprintf(c.w, "%s: skipped (not found)\n\n", tf.path)
+			}
 			continue
 		}
-		printResult(c.w, r, single)
+		if c.Verbose {
+			printResult(c.w, r, single)
+		}
 	}
 	return nil
 }

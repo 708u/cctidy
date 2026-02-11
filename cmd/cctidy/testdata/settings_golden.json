@@ -122,12 +122,13 @@
       "mcp__github__search_code"
     ],
     "ask": [
-      "Bash(docker *)"
+      "Bash(docker *)",
+      "Edit(/dead/docs)"
     ],
     "deny": [
       "Bash(rm -rf *)",
       "Bash(rm -rf /dead/secret)",
-      "Read(/etc/passwd)"
+      "Read(//etc/passwd)"
     ]
   },
   "respectGitignore": false,

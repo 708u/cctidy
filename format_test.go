@@ -234,21 +234,21 @@ func TestSettingsJSONFormatter(t *testing.T) {
 		},
 		{
 			name:    "prune dead permission paths",
-			input:   `{"permissions":{"allow":["Bash(git -C /dead/path status)","Read"]}}`,
+			input:   `{"permissions":{"allow":["Read(//dead/path)","Read"]}}`,
 			checker: checkerFor(),
 			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Read\"\n    ]\n  }\n}\n",
 		},
 		{
 			name:    "keep alive permission paths",
-			input:   `{"permissions":{"allow":["Bash(git -C /alive/path status)","Read"]}}`,
+			input:   `{"permissions":{"allow":["Read(//alive/path)","Read"]}}`,
 			checker: checkerFor("/alive/path"),
-			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(git -C /alive/path status)\",\n      \"Read\"\n    ]\n  }\n}\n",
+			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Read\",\n      \"Read(//alive/path)\"\n    ]\n  }\n}\n",
 		},
 		{
 			name:    "prune allow and ask but keep deny",
-			input:   `{"permissions":{"allow":["Bash(git -C /dead/a status)"],"deny":["Read(/dead/b)"],"ask":["Write(/dead/c)"]}}`,
+			input:   `{"permissions":{"allow":["Read(//dead/a)"],"deny":["Read(//dead/b)"],"ask":["Edit(//dead/c)"]}}`,
 			checker: checkerFor(),
-			want:    "{\n  \"permissions\": {\n    \"allow\": [],\n    \"ask\": [],\n    \"deny\": [\n      \"Read(/dead/b)\"\n    ]\n  }\n}\n",
+			want:    "{\n  \"permissions\": {\n    \"allow\": [],\n    \"ask\": [],\n    \"deny\": [\n      \"Read(//dead/b)\"\n    ]\n  }\n}\n",
 		},
 	}
 

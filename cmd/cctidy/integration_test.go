@@ -675,8 +675,8 @@ func TestIntegrationPrune(t *testing.T) {
 	input := `{
   "permissions": {
     "allow": [
-      "Bash(git -C ` + existingPath + ` status)",
-      "Bash(git -C ` + deadPath + ` status)",
+      "Read(/` + existingPath + `)",
+      "Read(/` + deadPath + `)",
       "Read",
       "Write"
     ],
@@ -700,7 +700,7 @@ func TestIntegrationPrune(t *testing.T) {
 	if !strings.Contains(got, existingPath) {
 		t.Error("existing path entry was removed")
 	}
-	if strings.Contains(got, `"Bash(git -C `+deadPath) {
+	if strings.Contains(got, `"Read(/`+deadPath) {
 		t.Error("dead path entry in allow was not removed")
 	}
 	if !strings.Contains(got, `"Read"`) {
@@ -724,7 +724,7 @@ func TestPruneCheck(t *testing.T) {
 	input := `{
   "permissions": {
     "allow": [
-      "Bash(git -C ` + deadPath + ` status)"
+      "Read(/` + deadPath + `)"
     ]
   }
 }`
@@ -747,7 +747,7 @@ func TestPruneDryRun(t *testing.T) {
 	input := `{
   "permissions": {
     "allow": [
-      "Bash(git -C ` + deadPath + ` status)"
+      "Read(/` + deadPath + `)"
     ]
   }
 }`

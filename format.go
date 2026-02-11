@@ -48,11 +48,11 @@ func (s *ClaudeJSONFormatterStats) Summary() string {
 
 // SettingsJSONFormatterStats holds statistics for settings.json formatting.
 type SettingsJSONFormatterStats struct {
-	SizeBefore    int
-	SizeAfter     int
-	PrunedAllow   int
-	PrunedAsk     int
-	RelativeWarns []string
+	SizeBefore  int
+	SizeAfter   int
+	PrunedAllow int
+	PrunedAsk   int
+	Warns       []string
 }
 
 func (s *SettingsJSONFormatterStats) Summary() string {
@@ -62,8 +62,8 @@ func (s *SettingsJSONFormatterStats) Summary() string {
 		fmt.Fprintf(&b, "Pruned: %d allow, %d ask entries\n",
 			s.PrunedAllow, s.PrunedAsk)
 	}
-	for _, w := range s.RelativeWarns {
-		fmt.Fprintf(&b, "Relative path (skipped): %s\n", w)
+	for _, w := range s.Warns {
+		fmt.Fprintf(&b, "Skipped: %s\n", w)
 	}
 	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
@@ -221,7 +221,7 @@ func (s *SettingsJSONFormatter) Format(ctx context.Context, data []byte) (*Forma
 	pr := s.Pruner.Prune(ctx, obj)
 	stats.PrunedAllow = pr.PrunedAllow
 	stats.PrunedAsk = pr.PrunedAsk
-	stats.RelativeWarns = pr.RelativeWarns
+	stats.Warns = pr.Warns
 
 	sortArraysRecursive(obj)
 

@@ -7,14 +7,23 @@ import (
 	"strings"
 )
 
+// absPathRe matches absolute paths starting with / in a command string.
+// Used by extractAbsolutePaths to find paths like /home/user/repo.
+// The leading alternative handles word boundaries without lookbehind.
 var absPathRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.~])/[A-Za-z0-9_./-]+`)
 
+// relPathRe matches relative paths prefixed with ./, ../, or ~/
+// in a command string. Bare relative paths (e.g. src/file) are
+// intentionally excluded to avoid false positives.
+// Capture group 1 contains the path including its prefix.
 var relPathRe = regexp.MustCompile(`(?:^|\s|=)(\.\./[A-Za-z0-9_./-]+|\./[A-Za-z0-9_./-]+|~/[A-Za-z0-9_./-]+)`)
 
+// toolEntryRe matches a permission entry like "Read(/path/to/file)"
+// and captures the tool name and specifier.
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
-// extractToolEntry splits a permission entry like "Read(/path/to/file)"
-// into tool name and specifier. Returns ("", "") if the entry has no specifier.
+// extractToolEntry returns the tool name and specifier from a
+// permission entry. Returns ("", "") if the entry has no specifier.
 func extractToolEntry(entry string) (toolName, specifier string) {
 	m := toolEntryRe.FindStringSubmatch(entry)
 	if m == nil {

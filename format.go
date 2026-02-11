@@ -205,10 +205,11 @@ func (c *claudeJSONData) cleanGitHubRepoPaths(ctx context.Context, stats *Claude
 // When PathChecker is provided, dead permission paths are pruned.
 type SettingsJSONFormatter struct {
 	PathChecker PathChecker
+	BaseDir     string
 }
 
-func NewSettingsJSONFormatter(checker PathChecker) *SettingsJSONFormatter {
-	return &SettingsJSONFormatter{PathChecker: checker}
+func NewSettingsJSONFormatter(checker PathChecker, baseDir string) *SettingsJSONFormatter {
+	return &SettingsJSONFormatter{PathChecker: checker, BaseDir: baseDir}
 }
 
 func (s *SettingsJSONFormatter) Format(ctx context.Context, data []byte) (*FormatResult, error) {
@@ -219,7 +220,7 @@ func (s *SettingsJSONFormatter) Format(ctx context.Context, data []byte) (*Forma
 
 	stats := &SettingsJSONFormatterStats{SizeBefore: len(data)}
 
-	pr := prunePermissions(ctx, obj, s.PathChecker)
+	pr := prunePermissions(ctx, obj, s.PathChecker, s.BaseDir)
 	stats.PrunedAllow = pr.PrunedAllow
 	stats.PrunedDeny = pr.PrunedDeny
 	stats.PrunedAsk = pr.PrunedAsk

@@ -199,37 +199,37 @@ func TestSettingsJSONFormatter(t *testing.T) {
 		{
 			name:    "settings-style key sorting",
 			input:   `{"permissions":{"allow":["Bash","Read"]},"env":{"Z_VAR":"z","A_VAR":"a"},"hooks":{"preToolUse":[]}}`,
-			checker: nil,
+			checker: alwaysTrue{},
 			want:    "{\n  \"env\": {\n    \"A_VAR\": \"a\",\n    \"Z_VAR\": \"z\"\n  },\n  \"hooks\": {\n    \"preToolUse\": []\n  },\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\"\n    ]\n  }\n}\n",
 		},
 		{
 			name:    "sort string arrays in permissions",
 			input:   `{"permissions":{"allow":["Write","Bash","Read"],"deny":["mcp__dangerous","mcp__admin"]}}`,
-			checker: nil,
+			checker: alwaysTrue{},
 			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\",\n      \"Write\"\n    ],\n    \"deny\": [\n      \"mcp__admin\",\n      \"mcp__dangerous\"\n    ]\n  }\n}\n",
 		},
 		{
 			name:    "no projects or githubRepoPaths added",
 			input:   `{"apiKey":"test"}`,
-			checker: nil,
+			checker: alwaysTrue{},
 			want:    "{\n  \"apiKey\": \"test\"\n}\n",
 		},
 		{
 			name:    "invalid JSON",
 			input:   `{broken`,
-			checker: nil,
+			checker: alwaysTrue{},
 			wantErr: true,
 		},
 		{
 			name:    "empty object",
 			input:   `{}`,
-			checker: nil,
+			checker: alwaysTrue{},
 			want:    "{}\n",
 		},
 		{
 			name:    "nested objects sorted recursively",
 			input:   `{"z":{"b":2,"a":1},"a":{"d":4,"c":3}}`,
-			checker: nil,
+			checker: alwaysTrue{},
 			want:    "{\n  \"a\": {\n    \"c\": 3,\n    \"d\": 4\n  },\n  \"z\": {\n    \"a\": 1,\n    \"b\": 2\n  }\n}\n",
 		},
 		{
@@ -245,12 +245,6 @@ func TestSettingsJSONFormatter(t *testing.T) {
 			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(git -C /alive/path status)\",\n      \"Read\"\n    ]\n  }\n}\n",
 		},
 		{
-			name:    "nil checker skips pruning",
-			input:   `{"permissions":{"allow":["Bash(git -C /any/path status)","Read"]}}`,
-			checker: nil,
-			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash(git -C /any/path status)\",\n      \"Read\"\n    ]\n  }\n}\n",
-		},
-		{
 			name:    "prune across allow deny ask",
 			input:   `{"permissions":{"allow":["Bash(git -C /dead/a status)"],"deny":["Read(/dead/b)"],"ask":["Write(/dead/c)"]}}`,
 			checker: checkerFor(),
@@ -261,7 +255,7 @@ func TestSettingsJSONFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := NewSettingsJSONFormatter(tt.checker).Format(t.Context(), []byte(tt.input))
+			result, err := NewSettingsJSONFormatter(tt.checker, "").Format(t.Context(), []byte(tt.input))
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -282,7 +276,7 @@ func TestSettingsJSONFormatter(t *testing.T) {
 func TestSettingsJSONFormatterDoesNotAddProjects(t *testing.T) {
 	t.Parallel()
 	input := `{"key": "value"}`
-	result, err := NewSettingsJSONFormatter(nil).Format(t.Context(), []byte(input))
+	result, err := NewSettingsJSONFormatter(alwaysTrue{}, "").Format(t.Context(), []byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -2,6 +2,7 @@ package cctidy
 
 import (
 	"context"
+	"path/filepath"
 	"regexp"
 	"slices"
 )
@@ -22,9 +23,13 @@ func ExtractAbsolutePaths(entry string) []string {
 	return paths
 }
 
-// ContainsRelativePath reports whether the entry contains a relative path.
-func ContainsRelativePath(entry string) bool {
-	return relPathRe.MatchString(entry)
+// ExtractRelativePaths extracts all relative paths from a permission entry string.
+func ExtractRelativePaths(entry string) []string {
+	matches := relPathRe.FindAllString(entry, -1)
+	if matches == nil {
+		return nil
+	}
+	return matches
 }
 
 // PruneResult holds statistics from permission pruning.
@@ -35,11 +40,8 @@ type PruneResult struct {
 	RelativeWarns []string
 }
 
-func prunePermissions(ctx context.Context, obj map[string]any, checker PathChecker) *PruneResult {
+func prunePermissions(ctx context.Context, obj map[string]any, checker PathChecker, baseDir string) *PruneResult {
 	result := &PruneResult{}
-	if checker == nil {
-		return result
-	}
 
 	raw, ok := obj["permissions"]
 	if !ok {
@@ -78,18 +80,9 @@ func prunePermissions(ctx context.Context, obj map[string]any, checker PathCheck
 				continue
 			}
 
-			if ContainsRelativePath(entry) {
-				result.RelativeWarns = append(result.RelativeWarns, entry)
-			}
-
-			absPaths := ExtractAbsolutePaths(entry)
-			if len(absPaths) > 0 {
-				if !slices.ContainsFunc(absPaths, func(p string) bool {
-					return checker.Exists(ctx, p)
-				}) {
-					*cat.count++
-					continue
-				}
+			if shouldPrune(ctx, entry, checker, baseDir, result) {
+				*cat.count++
+				continue
 			}
 
 			kept = append(kept, v)
@@ -98,4 +91,26 @@ func prunePermissions(ctx context.Context, obj map[string]any, checker PathCheck
 	}
 
 	return result
+}
+
+func shouldPrune(ctx context.Context, entry string, checker PathChecker, baseDir string, result *PruneResult) bool {
+	absPaths := ExtractAbsolutePaths(entry)
+	if len(absPaths) > 0 {
+		return !slices.ContainsFunc(absPaths, func(p string) bool {
+			return checker.Exists(ctx, p)
+		})
+	}
+
+	relPaths := ExtractRelativePaths(entry)
+	if len(relPaths) > 0 {
+		if baseDir == "" {
+			result.RelativeWarns = append(result.RelativeWarns, entry)
+			return false
+		}
+		return !slices.ContainsFunc(relPaths, func(p string) bool {
+			return checker.Exists(ctx, filepath.Join(baseDir, p))
+		})
+	}
+
+	return false
 }

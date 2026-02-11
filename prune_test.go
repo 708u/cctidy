@@ -1,6 +1,8 @@
 package cctidy
 
 import (
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -19,8 +21,8 @@ func TestExtractAbsolutePaths(t *testing.T) {
 		},
 		{
 			name:  "direct binary path with glob",
-			entry: "Bash(/Users/foo/twig sync:*)",
-			want:  []string{"/Users/foo/twig"},
+			entry: "Bash(/Users/foo/bin/mytool run:*)",
+			want:  []string{"/Users/foo/bin/mytool"},
 		},
 		{
 			name:  "export with path value",
@@ -70,36 +72,36 @@ func TestExtractAbsolutePaths(t *testing.T) {
 	}
 }
 
-func TestContainsRelativePath(t *testing.T) {
+func TestExtractRelativePaths(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
 		entry string
-		want  bool
+		want  []string
 	}{
 		{
 			name:  "relative path present",
 			entry: "Bash(./ccfmt:*)",
-			want:  true,
+			want:  []string{"./ccfmt"},
 		},
 		{
 			name:  "no relative path",
 			entry: "Bash(npm run *)",
-			want:  false,
+			want:  nil,
 		},
 		{
 			name:  "absolute path only",
 			entry: "Bash(/usr/bin/echo)",
-			want:  false,
+			want:  nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ContainsRelativePath(tt.entry)
-			if got != tt.want {
-				t.Errorf("ContainsRelativePath(%q) = %v, want %v", tt.entry, got, tt.want)
+			got := ExtractRelativePaths(tt.entry)
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("ExtractRelativePaths(%q) = %v, want %v", tt.entry, got, tt.want)
 			}
 		})
 	}
@@ -115,7 +117,7 @@ func TestPrunePermissions(t *testing.T) {
 				"allow": []any{"Bash(git -C /Users/foo/repo status)"},
 			},
 		}
-		result := prunePermissions(t.Context(), obj, alwaysFalse{})
+		result := prunePermissions(t.Context(), obj, alwaysFalse{}, "")
 		perms := obj["permissions"].(map[string]any)
 		allow := perms["allow"].([]any)
 		if len(allow) != 0 {
@@ -133,7 +135,7 @@ func TestPrunePermissions(t *testing.T) {
 				"allow": []any{"Bash(git -C /Users/foo/repo status)"},
 			},
 		}
-		result := prunePermissions(t.Context(), obj, checkerFor("/Users/foo/repo"))
+		result := prunePermissions(t.Context(), obj, checkerFor("/Users/foo/repo"), "")
 		perms := obj["permissions"].(map[string]any)
 		allow := perms["allow"].([]any)
 		if len(allow) != 1 {
@@ -151,7 +153,7 @@ func TestPrunePermissions(t *testing.T) {
 				"allow": []any{"Bash(npm run *)"},
 			},
 		}
-		result := prunePermissions(t.Context(), obj, alwaysFalse{})
+		result := prunePermissions(t.Context(), obj, alwaysFalse{}, "")
 		perms := obj["permissions"].(map[string]any)
 		allow := perms["allow"].([]any)
 		if len(allow) != 1 {
@@ -162,14 +164,14 @@ func TestPrunePermissions(t *testing.T) {
 		}
 	})
 
-	t.Run("relative path entry is kept and warned", func(t *testing.T) {
+	t.Run("relative path without baseDir is warned", func(t *testing.T) {
 		t.Parallel()
 		obj := map[string]any{
 			"permissions": map[string]any{
 				"allow": []any{"Bash(./ccfmt:*)"},
 			},
 		}
-		result := prunePermissions(t.Context(), obj, alwaysFalse{})
+		result := prunePermissions(t.Context(), obj, alwaysFalse{}, "")
 		perms := obj["permissions"].(map[string]any)
 		allow := perms["allow"].([]any)
 		if len(allow) != 1 {
@@ -180,35 +182,55 @@ func TestPrunePermissions(t *testing.T) {
 		}
 	})
 
+	t.Run("relative path with baseDir is resolved and pruned", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{"Bash(./ccfmt:*)"},
+			},
+		}
+		result := prunePermissions(t.Context(), obj, alwaysFalse{}, "/project")
+		perms := obj["permissions"].(map[string]any)
+		allow := perms["allow"].([]any)
+		if len(allow) != 0 {
+			t.Errorf("allow should be empty, got %v", allow)
+		}
+		if result.PrunedAllow != 1 {
+			t.Errorf("PrunedAllow = %d, want 1", result.PrunedAllow)
+		}
+	})
+
+	t.Run("relative path with baseDir is kept when exists", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "ccfmt"), []byte(""), 0o755)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{"Bash(./ccfmt:*)"},
+			},
+		}
+		result := prunePermissions(t.Context(), obj, checkerFor(filepath.Join(dir, "ccfmt")), dir)
+		perms := obj["permissions"].(map[string]any)
+		allow := perms["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow should have 1 entry, got %v", allow)
+		}
+		if result.PrunedAllow != 0 {
+			t.Errorf("PrunedAllow = %d, want 0", result.PrunedAllow)
+		}
+	})
+
 	t.Run("missing permissions key is no-op", func(t *testing.T) {
 		t.Parallel()
 		obj := map[string]any{"key": "value"}
-		result := prunePermissions(t.Context(), obj, alwaysTrue{})
+		result := prunePermissions(t.Context(), obj, alwaysTrue{}, "")
 		if result.PrunedAllow != 0 || result.PrunedDeny != 0 || result.PrunedAsk != 0 {
 			t.Errorf("expected zero counts, got allow=%d deny=%d ask=%d",
 				result.PrunedAllow, result.PrunedDeny, result.PrunedAsk)
 		}
 		if len(result.RelativeWarns) != 0 {
 			t.Errorf("expected no warnings, got %v", result.RelativeWarns)
-		}
-	})
-
-	t.Run("nil checker means no pruning", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Bash(git -C /Users/foo/repo status)"},
-			},
-		}
-		result := prunePermissions(t.Context(), obj, nil)
-		perms := obj["permissions"].(map[string]any)
-		allow := perms["allow"].([]any)
-		if len(allow) != 1 {
-			t.Errorf("allow should have 1 entry, got %v", allow)
-		}
-		if result.PrunedAllow != 0 || result.PrunedDeny != 0 || result.PrunedAsk != 0 {
-			t.Errorf("expected zero counts, got allow=%d deny=%d ask=%d",
-				result.PrunedAllow, result.PrunedDeny, result.PrunedAsk)
 		}
 	})
 
@@ -221,7 +243,7 @@ func TestPrunePermissions(t *testing.T) {
 				"ask":   []any{"Bash(git -C /dead/ask status)"},
 			},
 		}
-		result := prunePermissions(t.Context(), obj, alwaysFalse{})
+		result := prunePermissions(t.Context(), obj, alwaysFalse{}, "")
 		if result.PrunedAllow != 1 {
 			t.Errorf("PrunedAllow = %d, want 1", result.PrunedAllow)
 		}

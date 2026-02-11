@@ -163,7 +163,8 @@ func (c *CLI) runTargets(ctx context.Context, targets []targetFile) error {
 
 func (c *CLI) resolveTargets(home string) []targetFile {
 	if c.Target != "" {
-		var f Formatter = cctidy.NewSettingsJSONFormatter(c.checker)
+		baseDir := filepath.Dir(filepath.Dir(c.Target))
+		var f Formatter = cctidy.NewSettingsJSONFormatter(c.checker, baseDir)
 		if filepath.Base(c.Target) == ".claude.json" {
 			f = cctidy.NewClaudeJSONFormatter(c.checker)
 		}
@@ -175,13 +176,14 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 func (c *CLI) defaultTargets(home string) []targetFile {
 	cwd, _ := os.Getwd()
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
-	settings := cctidy.NewSettingsJSONFormatter(c.checker)
+	globalSettings := cctidy.NewSettingsJSONFormatter(c.checker, "")
+	projectSettings := cctidy.NewSettingsJSONFormatter(c.checker, cwd)
 	return []targetFile{
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
-		{path: filepath.Join(home, ".claude", "settings.json"), formatter: settings},
-		{path: filepath.Join(home, ".claude", "settings.local.json"), formatter: settings},
-		{path: filepath.Join(cwd, ".claude", "settings.json"), formatter: settings},
-		{path: filepath.Join(cwd, ".claude", "settings.local.json"), formatter: settings},
+		{path: filepath.Join(home, ".claude", "settings.json"), formatter: globalSettings},
+		{path: filepath.Join(home, ".claude", "settings.local.json"), formatter: globalSettings},
+		{path: filepath.Join(cwd, ".claude", "settings.json"), formatter: projectSettings},
+		{path: filepath.Join(cwd, ".claude", "settings.local.json"), formatter: projectSettings},
 	}
 }
 

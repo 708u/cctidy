@@ -60,7 +60,7 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := cctidy.NewSettingsJSONFormatter(nil).Format(t.Context(), input)
+	result, err := cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "").Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -346,7 +346,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -369,8 +369,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(nil)},
-			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
+			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -512,8 +512,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -533,8 +533,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		err := cli.runTargets(t.Context(), targets)
 		if !errors.Is(err, errUnformatted) {
@@ -553,8 +553,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
-			{path: missing, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
+			{path: missing, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -574,8 +574,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(nil)},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(nil)},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "")},
 		}
 		cli.runTargets(t.Context(), targets)
 

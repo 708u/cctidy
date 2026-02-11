@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
-	"text/tabwriter"
 	"time"
 
 	"github.com/708u/cctidy"
@@ -18,12 +17,6 @@ import (
 )
 
 var errUnformatted = errors.New("unformatted files detected")
-
-var (
-	version   = "dev"
-	commit    = "unknown"
-	buildTime = "unknown"
-)
 
 type CLI struct {
 	Target          string           `help:"Path to a specific file to format." short:"t" name:"target"`
@@ -337,16 +330,6 @@ func writeFile(path string, data []byte, perm os.FileMode) error {
 	}
 
 	return nil
-}
-
-func versionString() string {
-	var buf bytes.Buffer
-	w := tabwriter.NewWriter(&buf, 0, 0, 1, ' ', 0)
-	fmt.Fprintf(w, "Version:\t%s\n", version)
-	fmt.Fprintf(w, "Commit:\t%s\n", commit)
-	fmt.Fprintf(w, "Built:\t%s\n", buildTime)
-	w.Flush()
-	return buf.String()
 }
 
 type osPathChecker struct{}

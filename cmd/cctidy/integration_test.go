@@ -763,7 +763,7 @@ func TestIntegrationBashSweep(t *testing.T) {
 	os.WriteFile(file, []byte(input), 0o644)
 
 	var buf bytes.Buffer
-	cli := &CLI{Target: file, IncludeBashTool: true, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	cli := &CLI{Target: file, SweepBash: true, Verbose: true, checker: &osPathChecker{}, w: &buf}
 	if err := cli.Run(t.Context(), dir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -906,12 +906,12 @@ exclude_commands = ["mkdir", "touch"]
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:          file,
-			IncludeBashTool: true,
-			Verbose:         true,
-			checker:         &osPathChecker{},
-			cfg:             cfg,
-			w:               &buf,
+			Target:    file,
+			SweepBash: true,
+			Verbose:   true,
+			checker:   &osPathChecker{},
+			cfg:       cfg,
+			w:         &buf,
 		}
 		if err := cli.Run(t.Context(), dir); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -962,12 +962,12 @@ exclude_entries = ["install -m 755 `+deadPath+`/bin/app"]
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:          file,
-			IncludeBashTool: true,
-			Verbose:         true,
-			checker:         &osPathChecker{},
-			cfg:             cfg,
-			w:               &buf,
+			Target:    file,
+			SweepBash: true,
+			Verbose:   true,
+			checker:   &osPathChecker{},
+			cfg:       cfg,
+			w:         &buf,
 		}
 		if err := cli.Run(t.Context(), dir); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1015,12 +1015,12 @@ exclude_paths = ["`+deadPath+`/opt/"]
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:          file,
-			IncludeBashTool: true,
-			Verbose:         true,
-			checker:         &osPathChecker{},
-			cfg:             cfg,
-			w:               &buf,
+			Target:    file,
+			SweepBash: true,
+			Verbose:   true,
+			checker:   &osPathChecker{},
+			cfg:       cfg,
+			w:         &buf,
 		}
 		if err := cli.Run(t.Context(), dir); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1163,12 +1163,12 @@ enabled = false
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:          file,
-			IncludeBashTool: true,
-			Verbose:         true,
-			checker:         &osPathChecker{},
-			cfg:             cfg,
-			w:               &buf,
+			Target:    file,
+			SweepBash: true,
+			Verbose:   true,
+			checker:   &osPathChecker{},
+			cfg:       cfg,
+			w:         &buf,
 		}
 		if err := cli.Run(t.Context(), dir); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1178,7 +1178,7 @@ enabled = false
 		got := string(data)
 
 		if strings.Contains(got, `"Bash(git -C `+deadPath) {
-			t.Error("CLI --include-bash-tool should override config enabled=false")
+			t.Error("CLI --sweep-bash should override config enabled=false")
 		}
 	})
 

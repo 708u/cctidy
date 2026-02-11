@@ -15,7 +15,7 @@ silently re-enable a previously blocked action.
 | Write | enabled  |
 | Bash  | disabled |
 
-Bash sweeping requires `--include-bash-tool` flag or
+Bash sweeping requires `--sweep-bash` flag or
 `enabled = true` in the config file. See
 [CLI Reference](cli.md#configuration-file) for config
 details.
@@ -53,7 +53,7 @@ The following entries are always kept:
 
 ## Bash
 
-Enabled with `--include-bash-tool`.
+Enabled with `--sweep-bash`.
 
 Bash entries have the form `Bash(command string)`.
 The sweeper extracts all paths from the command and

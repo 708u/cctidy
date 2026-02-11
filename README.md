@@ -42,7 +42,7 @@ of project-relative path resolution for permission
 sweeping.
 
 > [!NOTE]
-> Bash tool sweeping is opt-in via `--include-bash-tool`.
+> Bash tool sweeping is opt-in via `--sweep-bash`.
 > Bash entries may contain paths that do not yet exist
 > (e.g. output paths for `mkdir`, `touch`), so automatic
 > sweeping could remove intentional permissions.
@@ -81,7 +81,7 @@ cctidy --check
 cctidy -t ~/.claude.json --backup
 
 # Include Bash tool sweeping
-cctidy --include-bash-tool
+cctidy --sweep-bash
 ```
 
 ## CLI Options
@@ -92,7 +92,7 @@ cctidy --include-bash-tool
 | `--backup`            |       | Create backup before writing      |
 | `--dry-run`           |       | Show changes without writing      |
 | `--check`             |       | Exit with 1 if any file is dirty  |
-| `--include-bash-tool` |       | Include Bash entries in sweeping  |
+| `--sweep-bash` |       | Include Bash entries in sweeping  |
 | `--verbose`           | `-v`  | Show formatting details           |
 | `--version`           |       | Print version                     |
 

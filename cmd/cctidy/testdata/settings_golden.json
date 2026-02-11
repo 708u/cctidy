@@ -118,7 +118,8 @@
       "Edit(./src/dead.go)",
       "Read",
       "Read(**/*.ts)",
-      "Read(~/dead/config.json)",
+      "Read(//alive/project/file.txt)",
+      "Read(~/alive/config.json)",
       "Task(Explore)",
       "WebFetch(domain:github.com)",
       "Write",
@@ -127,8 +128,7 @@
     ],
     "ask": [
       "Bash(docker *)",
-      "Edit(/dead/docs)",
-      "Write(~/dead/notes.md)"
+      "Edit(/dead/docs)"
     ],
     "deny": [
       "Bash(rm -rf *)",

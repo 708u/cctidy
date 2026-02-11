@@ -23,6 +23,8 @@
       "Bash(npm run *)",
       "Read",
       "Read(//dead/project/file.txt)",
+      "Read(//alive/project/file.txt)",
+      "Read(~/alive/config.json)",
       "Bash(git commit *)",
       "WebFetch(domain:github.com)",
       "Task(Explore)",

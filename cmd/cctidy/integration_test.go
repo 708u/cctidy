@@ -24,7 +24,10 @@ func TestGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	f := cctidy.NewClaudeJSONFormatter(testutil.AllPathsExist{})
+	f := cctidy.NewClaudeJSONFormatter(testutil.CheckerFor(
+		"/Users/test/project-a",
+		"/Users/test/project-b",
+	))
 	result, err := f.Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
@@ -56,7 +59,13 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.NoPathsExist{}, "")).Format(t.Context(), input)
+	result, err := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(
+		testutil.CheckerFor(
+			"/alive/project/file.txt",
+			"/Users/test/alive/config.json",
+		),
+		"/Users/test",
+	)).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}
@@ -660,45 +669,113 @@ func TestIntegrationSweep(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
-	existingPath := filepath.Join(dir, "project-a")
-	os.Mkdir(existingPath, 0o755)
-	deadPath := filepath.Join(dir, "gone-project")
+	// Directory layout:
+	//   dir/
+	//     home/
+	//       alive-config.json   ← real file
+	//       (dead-config.json)  ← does not exist
+	//     project/
+	//       .claude/
+	//         settings.json     ← target file
+	//       src/
+	//         alive.go          ← real file
+	//         (dead.go)         ← does not exist
+	//     alive-abs/            ← real directory
+	//     (dead-abs/)           ← does not exist
+
+	homeDir := filepath.Join(dir, "home")
+	projectDir := filepath.Join(dir, "project")
+	settingsDir := filepath.Join(projectDir, ".claude")
+	srcDir := filepath.Join(projectDir, "src")
+	aliveAbs := filepath.Join(dir, "alive-abs")
+	deadAbs := filepath.Join(dir, "dead-abs")
+
+	os.MkdirAll(settingsDir, 0o755)
+	os.MkdirAll(srcDir, 0o755)
+	os.MkdirAll(homeDir, 0o755)
+	os.MkdirAll(aliveAbs, 0o755)
+	os.WriteFile(filepath.Join(homeDir, "alive-config.json"), []byte("{}"), 0o644)
+	os.WriteFile(filepath.Join(srcDir, "alive.go"), []byte("package src"), 0o644)
 
 	input := `{
   "permissions": {
     "allow": [
-      "Read(/` + existingPath + `)",
-      "Read(/` + deadPath + `)",
+      "Read(/` + aliveAbs + `)",
+      "Read(/` + deadAbs + `)",
+      "Read(~/alive-config.json)",
+      "Read(~/dead-config.json)",
+      "Edit(./src/alive.go)",
+      "Edit(./src/dead.go)",
+      "Read(**/*.ts)",
       "Read",
       "Write"
     ],
+    "ask": [
+      "Write(~/dead-notes.md)",
+      "Bash(docker *)"
+    ],
     "deny": [
-      "Bash(rm -rf ` + deadPath + `)"
+      "Bash(rm -rf ` + deadAbs + `)"
     ]
   }
 }`
-	file := filepath.Join(dir, "settings.json")
+	file := filepath.Join(settingsDir, "settings.json")
 	os.WriteFile(file, []byte(input), 0o644)
 
 	var buf bytes.Buffer
 	cli := &CLI{Target: file, Verbose: true, checker: &osPathChecker{}, w: &buf}
-	if err := cli.Run(t.Context(), dir); err != nil {
+	if err := cli.Run(t.Context(), homeDir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	data, _ := os.ReadFile(file)
 	got := string(data)
 
-	if !strings.Contains(got, existingPath) {
-		t.Error("existing path entry was removed")
+	// alive absolute path → kept
+	if !strings.Contains(got, `"Read(/`+aliveAbs+`)`) {
+		t.Error("alive absolute path entry was removed")
 	}
-	if strings.Contains(got, `"Read(/`+deadPath) {
-		t.Error("dead path entry in allow was not removed")
+	// dead absolute path → swept
+	if strings.Contains(got, `"Read(/`+deadAbs+`)`) {
+		t.Error("dead absolute path entry was not swept")
 	}
+	// alive home-relative → kept
+	if !strings.Contains(got, `"Read(~/alive-config.json)"`) {
+		t.Error("alive home-relative entry was removed")
+	}
+	// dead home-relative → swept
+	if strings.Contains(got, `"Read(~/dead-config.json)"`) {
+		t.Error("dead home-relative entry was not swept")
+	}
+	// alive dot-relative → kept
+	if !strings.Contains(got, `"Edit(./src/alive.go)"`) {
+		t.Error("alive dot-relative entry was removed")
+	}
+	// dead dot-relative → swept
+	if strings.Contains(got, `"Edit(./src/dead.go)"`) {
+		t.Error("dead dot-relative entry was not swept")
+	}
+	// glob → kept
+	if !strings.Contains(got, `"Read(**/*.ts)"`) {
+		t.Error("glob entry was removed")
+	}
+	// bare tool → kept
 	if !strings.Contains(got, `"Read"`) {
-		t.Error("non-path entry was removed")
+		t.Error("bare Read entry was removed")
 	}
-	if !strings.Contains(got, `"Bash(rm -rf `+deadPath) {
+	if !strings.Contains(got, `"Write"`) {
+		t.Error("bare Write entry was removed")
+	}
+	// unregistered tool in ask → kept
+	if !strings.Contains(got, `"Bash(docker *)"`) {
+		t.Error("unregistered tool entry was removed")
+	}
+	// dead home-relative in ask → swept
+	if strings.Contains(got, `"Write(~/dead-notes.md)"`) {
+		t.Error("dead home-relative ask entry was not swept")
+	}
+	// deny → kept (even with dead path)
+	if !strings.Contains(got, `"Bash(rm -rf `+deadAbs) {
 		t.Error("deny entry with dead path was incorrectly swept")
 	}
 

@@ -43,7 +43,8 @@
   "firstStartTime": "2024-01-15T10:30:00.000Z",
   "githubRepoPaths": {
     "org/repo-beta": ["/Users/test/project-b", "/Users/test/project-a"],
-    "org/repo-alpha": ["/Users/test/project-a"]
+    "org/repo-alpha": ["/Users/test/project-a"],
+    "org/dead-repo": ["/Users/test/dead-project"]
   },
   "groveConfigCache": {
     "uuid-xxx": {"config": true}
@@ -101,6 +102,22 @@
   "passesUpsellSeenCount": 4,
   "penguinModeOrgEnabled": true,
   "projects": {
+    "/Users/test/dead-project": {
+      "allowedTools": ["Read"],
+      "hasTrustDialogAccepted": true,
+      "lastSessionId": "session-zzz",
+      "lastCost": 0.01,
+      "lastDuration": 10000,
+      "lastTotalInputTokens": 500,
+      "lastTotalOutputTokens": 200,
+      "lastModelUsage": {
+        "haiku": {"input": 500, "output": 200}
+      },
+      "mcpContextUris": [],
+      "disabledMcpjsonServers": [],
+      "enabledMcpjsonServers": [],
+      "projectOnboardingSeenCount": 0
+    },
     "/Users/test/project-b": {
       "allowedTools": ["Write", "Bash", "Read"],
       "hasTrustDialogAccepted": true,

@@ -78,7 +78,8 @@ func (r *ReadEditToolSweeper) ShouldSweep(ctx context.Context, specifier string)
 		if r.homeDir == "" {
 			return ToolSweepResult{}
 		}
-		resolved = filepath.Join(r.homeDir, specifier[2:])
+		rest, _ := strings.CutPrefix(specifier, "~/")
+		resolved = filepath.Join(r.homeDir, rest)
 	default: // /path, ./path, ../path, bare path — all project-relative
 		if r.baseDir == "" {
 			return ToolSweepResult{}
@@ -147,7 +148,8 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) Too
 			if b.homeDir == "" {
 				continue
 			}
-			resolved = append(resolved, filepath.Join(b.homeDir, p[2:]))
+			rest, _ := strings.CutPrefix(p, "~/")
+			resolved = append(resolved, filepath.Join(b.homeDir, rest))
 		case strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../"):
 			if b.baseDir == "" {
 				continue

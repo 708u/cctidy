@@ -56,8 +56,17 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	checker := testutil.CheckerFor("/alive/repo")
-	result, err := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(checker, "", cctidy.WithBashSweep())).Format(t.Context(), input)
+	checker := testutil.CheckerFor(
+		"/alive/repo",
+		"/alive/data/file.txt",
+		"/project/bin/run",
+		"/home/user/config.json",
+		"/home/user/alive/notes.md",
+		"/project/src/alive.go",
+		"/alive/output.txt",
+	)
+	sweeper := cctidy.NewPermissionSweeper(checker, "/home/user", cctidy.WithBashSweep(), cctidy.WithBaseDir("/project"))
+	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}

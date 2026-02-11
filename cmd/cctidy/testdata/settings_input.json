@@ -15,7 +15,8 @@
     ],
     "ask": [
       "Bash(docker *)",
-      "Edit(/dead/docs)"
+      "Edit(/dead/docs)",
+      "Write(~/dead/notes.md)"
     ],
     "allow": [
       "Write",
@@ -25,7 +26,11 @@
       "Bash(git commit *)",
       "WebFetch(domain:github.com)",
       "Task(Explore)",
-      "mcp__github__search_code"
+      "mcp__github__search_code",
+      "Read(~/dead/config.json)",
+      "Edit(./src/dead.go)",
+      "Write(../dead.go)",
+      "Read(**/*.ts)"
     ]
   },
   "sandbox": {

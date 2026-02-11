@@ -115,15 +115,20 @@
     "allow": [
       "Bash(git commit *)",
       "Bash(npm run *)",
+      "Edit(./src/dead.go)",
       "Read",
+      "Read(**/*.ts)",
+      "Read(~/dead/config.json)",
       "Task(Explore)",
       "WebFetch(domain:github.com)",
       "Write",
+      "Write(../dead.go)",
       "mcp__github__search_code"
     ],
     "ask": [
       "Bash(docker *)",
-      "Edit(/dead/docs)"
+      "Edit(/dead/docs)",
+      "Write(~/dead/notes.md)"
     ],
     "deny": [
       "Bash(rm -rf *)",

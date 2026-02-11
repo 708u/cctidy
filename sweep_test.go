@@ -101,216 +101,179 @@ func TestContainsGlob(t *testing.T) {
 func TestReadEditToolSweeperShouldSweep(t *testing.T) {
 	t.Parallel()
 
-	t.Run("absolute path with // prefix is resolved", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{checker: alwaysFalse{}}
-		result := p.ShouldSweep(t.Context(), "//dead/path")
-		if !result.Sweep {
-			t.Error("should sweep non-existent absolute path")
-		}
-	})
+	tests := []struct {
+		name      string
+		sweeper   ReadEditToolSweeper
+		specifier string
+		wantSweep bool
+	}{
+		{
+			name:      "absolute path with // prefix is resolved",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}},
+			specifier: "//dead/path",
+			wantSweep: true,
+		},
+		{
+			name:      "existing absolute path is kept",
+			sweeper:   ReadEditToolSweeper{checker: checkerFor("/alive/path")},
+			specifier: "//alive/path",
+			wantSweep: false,
+		},
+		{
+			name:      "home-relative path with homeDir is resolved",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}, homeDir: "/home/user"},
+			specifier: "~/config.json",
+			wantSweep: true,
+		},
+		{
+			name:      "existing home-relative path is kept",
+			sweeper:   ReadEditToolSweeper{checker: checkerFor("/home/user/config.json"), homeDir: "/home/user"},
+			specifier: "~/config.json",
+			wantSweep: false,
+		},
+		{
+			name:      "home-relative path without homeDir is skipped",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}},
+			specifier: "~/config.json",
+			wantSweep: false,
+		},
+		{
+			name:      "relative path with baseDir is resolved",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}, baseDir: "/project"},
+			specifier: "./src/main.go",
+			wantSweep: true,
+		},
+		{
+			name:      "relative path without baseDir is skipped",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}},
+			specifier: "./src/main.go",
+			wantSweep: false,
+		},
+		{
+			name:      "glob pattern is skipped",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}},
+			specifier: "**/*.ts",
+			wantSweep: false,
+		},
+		{
+			name:      "parent-relative path with baseDir is resolved",
+			sweeper:   ReadEditToolSweeper{checker: alwaysFalse{}, baseDir: "/project"},
+			specifier: "../other/file.go",
+			wantSweep: true,
+		},
+		{
+			name:      "slash-prefixed path with baseDir is resolved",
+			sweeper:   ReadEditToolSweeper{checker: checkerFor("/project/src/file.go"), baseDir: "/project"},
+			specifier: "/src/file.go",
+			wantSweep: false,
+		},
+	}
 
-	t.Run("existing absolute path is kept", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{checker: checkerFor("/alive/path")}
-		result := p.ShouldSweep(t.Context(), "//alive/path")
-		if result.Sweep {
-			t.Error("should not sweep existing absolute path")
-		}
-	})
-
-	t.Run("home-relative path with homeDir is resolved", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{
-			checker: alwaysFalse{},
-			homeDir: "/home/user",
-		}
-		result := p.ShouldSweep(t.Context(), "~/config.json")
-		if !result.Sweep {
-			t.Error("should sweep non-existent home-relative path")
-		}
-	})
-
-	t.Run("existing home-relative path is kept", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{
-			checker: checkerFor("/home/user/config.json"),
-			homeDir: "/home/user",
-		}
-		result := p.ShouldSweep(t.Context(), "~/config.json")
-		if result.Sweep {
-			t.Error("should not sweep existing home-relative path")
-		}
-	})
-
-	t.Run("home-relative path without homeDir is skipped", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{checker: alwaysFalse{}}
-		result := p.ShouldSweep(t.Context(), "~/config.json")
-		if result.Sweep {
-			t.Error("should skip home-relative path without homeDir")
-		}
-	})
-
-	t.Run("relative path with baseDir is resolved", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{
-			checker: alwaysFalse{},
-			baseDir: "/project",
-		}
-		result := p.ShouldSweep(t.Context(), "./src/main.go")
-		if !result.Sweep {
-			t.Error("should sweep non-existent relative path")
-		}
-	})
-
-	t.Run("relative path without baseDir is skipped", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{checker: alwaysFalse{}}
-		result := p.ShouldSweep(t.Context(), "./src/main.go")
-		if result.Sweep {
-			t.Error("should skip relative path without baseDir")
-		}
-	})
-
-	t.Run("glob pattern is skipped", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{checker: alwaysFalse{}}
-		result := p.ShouldSweep(t.Context(), "**/*.ts")
-		if result.Sweep {
-			t.Error("should skip glob pattern")
-		}
-	})
-
-	t.Run("parent-relative path with baseDir is resolved", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{
-			checker: alwaysFalse{},
-			baseDir: "/project",
-		}
-		result := p.ShouldSweep(t.Context(), "../other/file.go")
-		if !result.Sweep {
-			t.Error("should sweep non-existent parent-relative path")
-		}
-	})
-
-	t.Run("slash-prefixed path with baseDir is resolved", func(t *testing.T) {
-		t.Parallel()
-		p := &ReadEditToolSweeper{
-			checker: checkerFor("/project/src/file.go"),
-			baseDir: "/project",
-		}
-		result := p.ShouldSweep(t.Context(), "/src/file.go")
-		if result.Sweep {
-			t.Error("should not sweep existing path resolved with baseDir")
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := tt.sweeper.ShouldSweep(t.Context(), tt.specifier)
+			if result.Sweep != tt.wantSweep {
+				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
+			}
+		})
+	}
 }
 
 func TestSweepPermissions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("dead absolute path entry is removed", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Read(//dead/path)"},
+	tests := []struct {
+		name           string
+		entries        []any
+		checker        PathChecker
+		homeDir        string
+		opts           []SweepOption
+		wantAllowLen   int
+		wantSweptAllow int
+	}{
+		{
+			name:           "dead absolute path entry is removed",
+			entries:        []any{"Read(//dead/path)"},
+			checker:        alwaysFalse{},
+			wantAllowLen:   0,
+			wantSweptAllow: 1,
+		},
+		{
+			name:           "existing absolute path entry is kept",
+			entries:        []any{"Read(//alive/path)"},
+			checker:        checkerFor("/alive/path"),
+			wantAllowLen:   1,
+			wantSweptAllow: 0,
+		},
+		{
+			name:           "home-relative path with homeDir is swept when dead",
+			entries:        []any{"Read(~/dead/config)"},
+			checker:        alwaysFalse{},
+			homeDir:        "/home/user",
+			wantAllowLen:   0,
+			wantSweptAllow: 1,
+		},
+		{
+			name:           "home-relative path with homeDir is kept when exists",
+			entries:        []any{"Read(~/config)"},
+			checker:        checkerFor("/home/user/config"),
+			homeDir:        "/home/user",
+			wantAllowLen:   1,
+			wantSweptAllow: 0,
+		},
+		{
+			name:           "relative path without baseDir is kept",
+			entries:        []any{"Edit(/src/file.go)"},
+			checker:        alwaysFalse{},
+			wantAllowLen:   1,
+			wantSweptAllow: 0,
+		},
+		{
+			name:           "relative path with baseDir is swept when dead",
+			entries:        []any{"Edit(./src/file.go)"},
+			checker:        alwaysFalse{},
+			opts:           []SweepOption{WithBaseDir("/project")},
+			wantAllowLen:   0,
+			wantSweptAllow: 1,
+		},
+		{
+			name:           "glob pattern entry is kept",
+			entries:        []any{"Read(**/*.ts)"},
+			checker:        alwaysFalse{},
+			wantAllowLen:   1,
+			wantSweptAllow: 0,
+		},
+		{
+			name: "unregistered tool entries are kept",
+			entries: []any{
+				"Bash(git -C /dead/path status)",
+				"WebFetch(domain:example.com)",
 			},
-		}
-		result := NewPermissionSweeper(alwaysFalse{}, "").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 0 {
-			t.Errorf("allow should be empty, got %v", allow)
-		}
-		if result.SweptAllow != 1 {
-			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
-		}
-	})
+			checker:        alwaysFalse{},
+			wantAllowLen:   2,
+			wantSweptAllow: 0,
+		},
+	}
 
-	t.Run("existing absolute path entry is kept", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Read(//alive/path)"},
-			},
-		}
-		result := NewPermissionSweeper(checkerFor("/alive/path"), "").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 1 {
-			t.Errorf("allow should have 1 entry, got %v", allow)
-		}
-		if result.SweptAllow != 0 {
-			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
-		}
-	})
-
-	t.Run("home-relative path with homeDir is swept when dead", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Read(~/dead/config)"},
-			},
-		}
-		result := NewPermissionSweeper(alwaysFalse{}, "/home/user").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 0 {
-			t.Errorf("allow should be empty, got %v", allow)
-		}
-		if result.SweptAllow != 1 {
-			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
-		}
-	})
-
-	t.Run("home-relative path with homeDir is kept when exists", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Read(~/config)"},
-			},
-		}
-		result := NewPermissionSweeper(checkerFor("/home/user/config"), "/home/user").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 1 {
-			t.Errorf("allow should have 1 entry, got %v", allow)
-		}
-		if result.SweptAllow != 0 {
-			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
-		}
-	})
-
-	t.Run("relative path without baseDir is kept", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Edit(/src/file.go)"},
-			},
-		}
-		result := NewPermissionSweeper(alwaysFalse{}, "").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 1 {
-			t.Errorf("allow should have 1 entry, got %v", allow)
-		}
-		if result.SweptAllow != 0 {
-			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
-		}
-	})
-
-	t.Run("relative path with baseDir is swept when dead", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Edit(./src/file.go)"},
-			},
-		}
-		result := NewPermissionSweeper(alwaysFalse{}, "", WithBaseDir("/project")).Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 0 {
-			t.Errorf("allow should be empty, got %v", allow)
-		}
-		if result.SweptAllow != 1 {
-			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			obj := map[string]any{
+				"permissions": map[string]any{
+					"allow": tt.entries,
+				},
+			}
+			result := NewPermissionSweeper(tt.checker, tt.homeDir, tt.opts...).Sweep(t.Context(), obj)
+			allow := obj["permissions"].(map[string]any)["allow"].([]any)
+			if len(allow) != tt.wantAllowLen {
+				t.Errorf("allow len = %d, want %d, got %v", len(allow), tt.wantAllowLen, allow)
+			}
+			if result.SweptAllow != tt.wantSweptAllow {
+				t.Errorf("SweptAllow = %d, want %d", result.SweptAllow, tt.wantSweptAllow)
+			}
+		})
+	}
 
 	t.Run("relative path with baseDir is kept when exists", func(t *testing.T) {
 		t.Parallel()
@@ -326,43 +289,6 @@ func TestSweepPermissions(t *testing.T) {
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow should have 1 entry, got %v", allow)
-		}
-		if result.SweptAllow != 0 {
-			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
-		}
-	})
-
-	t.Run("glob pattern entry is kept", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{"Read(**/*.ts)"},
-			},
-		}
-		result := NewPermissionSweeper(alwaysFalse{}, "").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 1 {
-			t.Errorf("allow should have 1 entry, got %v", allow)
-		}
-		if result.SweptAllow != 0 {
-			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
-		}
-	})
-
-	t.Run("unregistered tool entries are kept", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{
-					"Bash(git -C /dead/path status)",
-					"WebFetch(domain:example.com)",
-				},
-			},
-		}
-		result := NewPermissionSweeper(alwaysFalse{}, "").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 2 {
-			t.Errorf("allow should have 2 entries, got %v", allow)
 		}
 		if result.SweptAllow != 0 {
 			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)

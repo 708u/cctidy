@@ -15,7 +15,10 @@ silently re-enable a previously blocked action.
 | Write | enabled  |
 | Bash  | disabled |
 
-Bash sweeping requires the `--include-bash-tool` flag.
+Bash sweeping requires `--include-bash-tool` flag or
+`enabled = true` in the config file. See
+[CLI Reference](cli.md#configuration-file) for config
+details.
 
 Entries for tools not listed above (e.g. `WebFetch`,
 `Grep`) are kept unchanged.
@@ -101,3 +104,22 @@ the entry is kept.
 | `Bash(cp /alive/src /dead/dst)`       | kept   | `/alive/src` exists  |
 | `Bash(npm run *)`                     | kept   | no extractable paths |
 | `Bash(cat ./dead/file)` (no baseDir)  | kept   | path unresolvable    |
+
+### Exclude Patterns
+
+When a config file is provided, Bash entries matching
+exclude patterns are always kept (never swept).
+
+Three exclusion types are available:
+
+| Type               | Match method        | Example               |
+| ------------------ | ------------------- | --------------------- |
+| `exclude_entries`  | Exact specifier     | `mkdir -p /opt/logs`  |
+| `exclude_commands` | First token (space) | `mkdir`, `touch`      |
+| `exclude_paths`    | Path prefix         | `/opt/myapp/`         |
+
+Checks are applied in order: entries, commands, paths.
+The first match wins.
+
+For `exclude_paths`, trailing `/` is recommended to
+ensure directory boundary matching.

@@ -67,7 +67,7 @@ func TestSettingsGolden(t *testing.T) {
 		filepath.Join(baseDir, "src/alive.go"),
 		filepath.Join(baseDir, "../alive/output.txt"),
 	)
-	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, cctidy.WithBashSweep(), cctidy.WithBaseDir(baseDir))
+	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, cctidy.WithBashSweep(cctidy.BashSweepConfig{}), cctidy.WithBaseDir(baseDir))
 	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
@@ -869,6 +869,355 @@ func TestSweepCheck(t *testing.T) {
 	if !errors.Is(err, errUnformatted) {
 		t.Fatalf("expected errUnformatted, got: %v", err)
 	}
+}
+
+func TestIntegrationConfigExclude(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exclude_commands keeps excluded entries", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-dir")
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.bash]
+exclude_commands = ["mkdir", "touch"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p ` + deadPath + `/logs)",
+      "Bash(touch ` + deadPath + `/.init)",
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:          file,
+			IncludeBashTool: true,
+			Verbose:         true,
+			checker:         &osPathChecker{},
+			cfg:             cfg,
+			w:               &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Bash(mkdir -p `+deadPath) {
+			t.Error("mkdir entry should be kept by exclude_commands")
+		}
+		if !strings.Contains(got, `"Bash(touch `+deadPath) {
+			t.Error("touch entry should be kept by exclude_commands")
+		}
+		if strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("git entry with dead path should be swept")
+		}
+	})
+
+	t.Run("exclude_entries keeps exact match", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead")
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.bash]
+exclude_entries = ["install -m 755 `+deadPath+`/bin/app"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(install -m 755 ` + deadPath + `/bin/app)",
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:          file,
+			IncludeBashTool: true,
+			Verbose:         true,
+			checker:         &osPathChecker{},
+			cfg:             cfg,
+			w:               &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Bash(install -m 755 `+deadPath) {
+			t.Error("exact entry should be kept by exclude_entries")
+		}
+		if strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("git entry with dead path should be swept")
+		}
+	})
+
+	t.Run("exclude_paths keeps entries with matching path prefix", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead")
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.bash]
+exclude_paths = ["`+deadPath+`/opt/"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(cat ` + deadPath + `/opt/config.yaml)",
+      "Bash(git -C ` + deadPath + `/repo status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:          file,
+			IncludeBashTool: true,
+			Verbose:         true,
+			checker:         &osPathChecker{},
+			cfg:             cfg,
+			w:               &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Bash(cat `+deadPath+`/opt/config.yaml)`) {
+			t.Error("entry with excluded path prefix should be kept")
+		}
+		if strings.Contains(got, `"Bash(git -C `+deadPath+`/repo`) {
+			t.Error("entry without excluded path prefix should be swept")
+		}
+	})
+
+	t.Run("config enabled activates bash sweep without CLI flag", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.bash]
+enabled = true
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:  file,
+			Verbose: true,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("bash entry should be swept when config enabled=true")
+		}
+	})
+
+	t.Run("config enabled=false does not activate bash sweep", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.bash]
+enabled = false
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:  file,
+			Verbose: true,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("bash entry should be kept when config enabled=false")
+		}
+	})
+
+	t.Run("CLI flag overrides config enabled=false", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.bash]
+enabled = false
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:          file,
+			IncludeBashTool: true,
+			Verbose:         true,
+			checker:         &osPathChecker{},
+			cfg:             cfg,
+			w:               &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("CLI --include-bash-tool should override config enabled=false")
+		}
+	})
+
+	t.Run("no config file preserves existing behavior", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, _ := cctidy.LoadConfig("/nonexistent/config.toml")
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:  file,
+			Verbose: true,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("bash entry should be kept without config or CLI flag")
+		}
+	})
 }
 
 func TestSweepDryRun(t *testing.T) {

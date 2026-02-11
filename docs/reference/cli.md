@@ -15,8 +15,65 @@ cctidy [flags]
 | `--dry-run`           |       | false   | Show changes without writing      |
 | `--check`             |       | false   | Exit with 1 if any file is dirty  |
 | `--include-bash-tool` |       | false   | Include Bash entries in sweeping  |
+| `--config`            |       | (auto)  | Path to config file               |
 | `--verbose`           | `-v`  | false   | Show formatting details           |
 | `--version`           |       |         | Print version                     |
+
+## Configuration File
+
+cctidy reads a TOML configuration file for settings
+that are too verbose for CLI flags (e.g. exclude patterns).
+
+### Search Order
+
+1. `--config PATH` (explicit)
+2. `~/.config/cctidy/config.toml` (default)
+
+If no config file is found, cctidy uses default settings.
+
+### Example
+
+```toml
+[sweep.bash]
+enabled = true
+exclude_entries = [
+  "mkdir -p /opt/myapp/logs",
+]
+exclude_commands = [
+  "mkdir",
+  "touch",
+  "ln",
+  "install",
+]
+exclude_paths = [
+  "/opt/myapp/",
+  "/var/log/myapp/",
+]
+```
+
+### Config Fields
+
+#### `[sweep.bash]`
+
+| Key                | Type     | Default | Description                |
+| ------------------ | -------- | ------- | -------------------------- |
+| `enabled`          | bool     | (unset) | Enable Bash sweep          |
+| `exclude_entries`  | string[] | []      | Specifiers to keep (exact) |
+| `exclude_commands` | string[] | []      | Commands to keep (first    |
+|                    |          |         | token match)               |
+| `exclude_paths`    | string[] | []      | Path prefixes to keep      |
+
+### Priority: CLI vs Config
+
+| config `enabled` | `--include-bash-tool` | Result    |
+| ---------------- | --------------------- | --------- |
+| unset / false    | absent                | sweep OFF |
+| unset / false    | present               | sweep ON  |
+| true             | absent                | sweep ON  |
+| true             | present               | sweep ON  |
+
+The CLI flag always wins. Exclude patterns are
+config-only (no CLI flags).
 
 ## Target Files
 

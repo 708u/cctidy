@@ -7,12 +7,23 @@ import (
 	"strings"
 )
 
+// absPathRe matches absolute paths starting with / in a command string.
+// Used by extractAbsolutePaths to find paths like /home/user/repo.
+// The leading alternative handles word boundaries without lookbehind.
 var absPathRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.~])/[A-Za-z0-9_./-]+`)
 
+// relPathRe matches relative paths prefixed with ./, ../, or ~/
+// in a command string. Bare relative paths (e.g. src/file) are
+// intentionally excluded to avoid false positives.
+// Capture group 1 contains the path including its prefix.
+var relPathRe = regexp.MustCompile(`(?:^|\s|=)(\.\./[A-Za-z0-9_./-]+|\./[A-Za-z0-9_./-]+|~/[A-Za-z0-9_./-]+)`)
+
+// toolEntryRe matches a permission entry like "Read(/path/to/file)"
+// and captures the tool name and specifier.
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
-// extractToolEntry splits a permission entry like "Read(/path/to/file)"
-// into tool name and specifier. Returns ("", "") if the entry has no specifier.
+// extractToolEntry returns the tool name and specifier from a
+// permission entry. Returns ("", "") if the entry has no specifier.
 func extractToolEntry(entry string) (toolName, specifier string) {
 	m := toolEntryRe.FindStringSubmatch(entry)
 	if m == nil {
@@ -76,7 +87,8 @@ func (r *ReadEditToolSweeper) ShouldSweep(ctx context.Context, specifier string)
 		if r.homeDir == "" {
 			return ToolSweepResult{}
 		}
-		resolved = filepath.Join(r.homeDir, specifier[2:])
+		rest, _ := strings.CutPrefix(specifier, "~/")
+		resolved = filepath.Join(r.homeDir, rest)
 	default: // /path, ./path, ../path, bare path — all project-relative
 		if r.baseDir == "" {
 			return ToolSweepResult{}
@@ -110,19 +122,59 @@ func extractAbsolutePaths(s string) []string {
 	return paths
 }
 
+// extractRelativePaths extracts all relative paths (../, ./, ~/) from a string.
+func extractRelativePaths(s string) []string {
+	matches := relPathRe.FindAllStringSubmatch(s, -1)
+	var paths []string
+	for _, m := range matches {
+		cleaned := strings.TrimRight(m[1], "/.")
+		if cleaned == "" {
+			continue
+		}
+		paths = append(paths, cleaned)
+	}
+	return paths
+}
+
 // BashToolSweeper sweeps Bash permission entries where all
-// absolute paths in the specifier are non-existent.
-// Entries with no absolute paths or at least one existing path are kept.
+// resolvable paths in the specifier are non-existent.
+// Entries with no resolvable paths or at least one existing path are kept.
 type BashToolSweeper struct {
 	checker PathChecker
+	homeDir string
+	baseDir string
 }
 
 func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
-	paths := extractAbsolutePaths(specifier)
-	if len(paths) == 0 {
+	absPaths := extractAbsolutePaths(specifier)
+	relPaths := extractRelativePaths(specifier)
+
+	// Resolve relative paths to absolute paths.
+	var resolved []string
+	for _, p := range relPaths {
+		switch {
+		case strings.HasPrefix(p, "~/"):
+			if b.homeDir == "" {
+				continue
+			}
+			rest, _ := strings.CutPrefix(p, "~/")
+			resolved = append(resolved, filepath.Join(b.homeDir, rest))
+		case strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../"):
+			if b.baseDir == "" {
+				continue
+			}
+			resolved = append(resolved, filepath.Join(b.baseDir, p))
+		}
+	}
+
+	allPaths := make([]string, 0, len(absPaths)+len(resolved))
+	allPaths = append(allPaths, absPaths...)
+	allPaths = append(allPaths, resolved...)
+	if len(allPaths) == 0 {
 		return ToolSweepResult{}
 	}
-	for _, p := range paths {
+
+	for _, p := range allPaths {
 		if b.checker.Exists(ctx, p) {
 			return ToolSweepResult{}
 		}
@@ -197,7 +249,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 		ToolRead: re, ToolEdit: re, ToolWrite: re,
 	}
 	if cfg.bashSweep {
-		tools[ToolBash] = &BashToolSweeper{checker: checker}
+		tools[ToolBash] = &BashToolSweeper{checker: checker, homeDir: homeDir, baseDir: cfg.baseDir}
 	}
 
 	return &PermissionSweeper{tools: tools}

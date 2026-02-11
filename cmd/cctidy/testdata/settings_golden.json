@@ -113,26 +113,24 @@
   "outputStyle": "Concise",
   "permissions": {
     "allow": [
-      "Bash(../scripts/deploy.sh)",
       "Bash(./bin/run --project)",
       "Bash(cat ~/config.json)",
       "Bash(git -C /alive/repo pull)",
       "Bash(git commit *)",
       "Bash(npm run *)",
-      "Edit(./src/dead.go)",
+      "Edit(./src/alive.go)",
       "Read",
       "Read(**/*.ts)",
-      "Read(~/dead/config.json)",
+      "Read(//alive/data/file.txt)",
+      "Read(~/alive/notes.md)",
       "Task(Explore)",
       "WebFetch(domain:github.com)",
       "Write",
-      "Write(../dead.go)",
+      "Write(../alive/output.txt)",
       "mcp__github__search_code"
     ],
     "ask": [
-      "Bash(docker *)",
-      "Edit(/dead/docs)",
-      "Write(~/dead/notes.md)"
+      "Bash(docker *)"
     ],
     "deny": [
       "Bash(rm -rf *)",

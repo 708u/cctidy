@@ -19,6 +19,10 @@ type alwaysTrue struct{}
 
 func (alwaysTrue) Exists(context.Context, string) bool { return true }
 
+type alwaysFalse struct{}
+
+func (alwaysFalse) Exists(context.Context, string) bool { return false }
+
 var update = flag.Bool("update", false, "update golden files")
 
 func TestGolden(t *testing.T) {
@@ -60,7 +64,7 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := cctidy.NewSettingsJSONFormatter(alwaysTrue{}, "").Format(t.Context(), input)
+	result, err := cctidy.NewSettingsJSONFormatter(alwaysFalse{}, "").Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}

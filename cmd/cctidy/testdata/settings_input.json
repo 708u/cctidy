@@ -10,16 +10,18 @@
   "permissions": {
     "deny": [
       "Bash(rm -rf *)",
-      "Read(/etc/passwd)"
+      "Read(/etc/passwd)",
+      "Bash(rm -rf /dead/secret)"
     ],
     "ask": [
-      "Bash(docker *)"
+      "Bash(docker *)",
+      "Write(/dead/docs)"
     ],
     "allow": [
       "Write",
       "Bash(npm run *)",
       "Read",
-      "Edit(/src/**/*.ts)",
+      "Bash(git -C /dead/project status)",
       "Bash(git commit *)",
       "WebFetch(domain:github.com)",
       "Task(Explore)",

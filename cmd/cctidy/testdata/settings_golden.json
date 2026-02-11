@@ -115,7 +115,6 @@
     "allow": [
       "Bash(git commit *)",
       "Bash(npm run *)",
-      "Edit(/src/**/*.ts)",
       "Read",
       "Task(Explore)",
       "WebFetch(domain:github.com)",
@@ -127,6 +126,7 @@
     ],
     "deny": [
       "Bash(rm -rf *)",
+      "Bash(rm -rf /dead/secret)",
       "Read(/etc/passwd)"
     ]
   },

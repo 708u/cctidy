@@ -195,51 +195,179 @@ func TestExtractAbsolutePaths(t *testing.T) {
 	}
 }
 
-func TestBashToolSweeperShouldSweep(t *testing.T) {
+func TestExtractRelativePaths(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		checker   PathChecker
-		specifier string
-		wantSweep bool
+		name  string
+		input string
+		want  []string
 	}{
 		{
-			name:      "all paths dead",
-			checker:   testutil.NoPathsExist{},
-			specifier: "git -C /dead/repo status",
-			wantSweep: true,
+			name:  "dot-slash path",
+			input: "cat ./src/main.go",
+			want:  []string{"./src/main.go"},
 		},
 		{
-			name:      "one path alive",
-			checker:   testutil.CheckerFor("/alive/src"),
-			specifier: "cp /alive/src /dead/dst",
-			wantSweep: false,
+			name:  "dot-dot-slash path",
+			input: "cat ../other/file",
+			want:  []string{"../other/file"},
 		},
 		{
-			name:      "no absolute paths keeps entry",
-			checker:   testutil.NoPathsExist{},
-			specifier: "npm run *",
-			wantSweep: false,
+			name:  "tilde path",
+			input: "cat ~/config.json",
+			want:  []string{"~/config.json"},
 		},
 		{
-			name:      "all paths alive",
-			checker:   testutil.AllPathsExist{},
-			specifier: "cp /src/a /dst/b",
-			wantSweep: false,
+			name:  "mixed relative paths",
+			input: "cat ~/file ./local ../parent",
+			want:  []string{"~/file", "./local", "../parent"},
 		},
 		{
-			name:      "multiple dead paths",
-			checker:   testutil.NoPathsExist{},
-			specifier: "cp /dead/a /dead/b",
-			wantSweep: true,
+			name:  "bare relative path not extracted",
+			input: "cat bare/path",
+			want:  nil,
+		},
+		{
+			name:  "no paths",
+			input: "echo hello",
+			want:  nil,
+		},
+		{
+			name:  "trailing slash trimmed",
+			input: "ls ./dir/",
+			want:  []string{"./dir"},
+		},
+		{
+			name:  "trailing dot trimmed",
+			input: "ls ./path.",
+			want:  []string{"./path"},
+		},
+		{
+			name:  "equals-prefixed dot-slash",
+			input: "--config=./app.conf",
+			want:  []string{"./app.conf"},
+		},
+		{
+			name:  "equals-prefixed tilde",
+			input: "--config=~/app.conf",
+			want:  []string{"~/app.conf"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			sweeper := BashToolSweeper{checker: tt.checker}
-			result := sweeper.ShouldSweep(t.Context(), tt.specifier)
+			got := extractRelativePaths(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("extractRelativePaths(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("extractRelativePaths(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestBashToolSweeperShouldSweep(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		sweeper   BashToolSweeper
+		specifier string
+		wantSweep bool
+	}{
+		{
+			name:      "all paths dead",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}},
+			specifier: "git -C /dead/repo status",
+			wantSweep: true,
+		},
+		{
+			name:      "one path alive",
+			sweeper:   BashToolSweeper{checker: testutil.CheckerFor("/alive/src")},
+			specifier: "cp /alive/src /dead/dst",
+			wantSweep: false,
+		},
+		{
+			name:      "no absolute paths keeps entry",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}},
+			specifier: "npm run *",
+			wantSweep: false,
+		},
+		{
+			name:      "all paths alive",
+			sweeper:   BashToolSweeper{checker: testutil.AllPathsExist{}},
+			specifier: "cp /src/a /dst/b",
+			wantSweep: false,
+		},
+		{
+			name:      "multiple dead paths",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}},
+			specifier: "cp /dead/a /dead/b",
+			wantSweep: true,
+		},
+		{
+			name:      "tilde path dead with homeDir",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}, homeDir: "/home/user"},
+			specifier: "cat ~/dead/config",
+			wantSweep: true,
+		},
+		{
+			name:      "tilde path alive with homeDir",
+			sweeper:   BashToolSweeper{checker: testutil.CheckerFor("/home/user/alive/config"), homeDir: "/home/user"},
+			specifier: "cat ~/alive/config",
+			wantSweep: false,
+		},
+		{
+			name:      "tilde path without homeDir is skipped",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}},
+			specifier: "cat ~/config",
+			wantSweep: false,
+		},
+		{
+			name:      "dot-slash path dead with baseDir",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}, baseDir: "/project"},
+			specifier: "cat ./src/main.go",
+			wantSweep: true,
+		},
+		{
+			name:      "dot-slash path without baseDir is skipped",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}},
+			specifier: "cat ./src/main.go",
+			wantSweep: false,
+		},
+		{
+			name:      "dot-dot-slash path dead with baseDir",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}, baseDir: "/project"},
+			specifier: "cat ../other/file",
+			wantSweep: true,
+		},
+		{
+			name:      "mixed absolute and relative all dead",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}, homeDir: "/home/user", baseDir: "/project"},
+			specifier: "cp /dead/src ./dead/dst",
+			wantSweep: true,
+		},
+		{
+			name:      "mixed absolute and relative one alive",
+			sweeper:   BashToolSweeper{checker: testutil.CheckerFor("/alive/src"), homeDir: "/home/user", baseDir: "/project"},
+			specifier: "cp /alive/src ./dead/dst",
+			wantSweep: false,
+		},
+		{
+			name:      "only unresolvable relative paths keeps entry",
+			sweeper:   BashToolSweeper{checker: testutil.NoPathsExist{}},
+			specifier: "cat ./local ../parent ~/home",
+			wantSweep: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := tt.sweeper.ShouldSweep(t.Context(), tt.specifier)
 			if result.Sweep != tt.wantSweep {
 				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
 			}
@@ -507,6 +635,63 @@ func TestSweepPermissions(t *testing.T) {
 			},
 		}
 		result := NewPermissionSweeper(testutil.NoPathsExist{}, "").Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries with tilde path swept when homeDir set and dead", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(cat ~/dead/config)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "/home/user", WithBashSweep()).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 0 {
+			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries with dot-slash path swept when baseDir set and dead", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(cat ./dead/file)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", WithBashSweep(), WithBaseDir("/project")).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 0 {
+			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries with relative path kept when no baseDir", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(cat ./local/file)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", WithBashSweep()).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)

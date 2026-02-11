@@ -713,9 +713,22 @@ func TestIntegrationBashSweep(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
+	// Create project structure: dir/project/.claude/settings.json
+	// This gives baseDir = dir/project, homeDir = dir
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+
 	existingPath := filepath.Join(dir, "alive-repo")
 	os.Mkdir(existingPath, 0o755)
 	deadPath := filepath.Join(dir, "dead-repo")
+
+	// Create files for alive relative paths
+	os.MkdirAll(filepath.Join(projectDir, "bin"), 0o755)
+	os.WriteFile(filepath.Join(projectDir, "bin", "run"), []byte(""), 0o755)
+	os.MkdirAll(filepath.Join(dir, "scripts"), 0o755)
+	os.WriteFile(filepath.Join(dir, "scripts", "deploy.sh"), []byte(""), 0o755)
+	os.WriteFile(filepath.Join(dir, "config.json"), []byte(""), 0o644)
 
 	input := `{
   "permissions": {
@@ -727,6 +740,7 @@ func TestIntegrationBashSweep(t *testing.T) {
       "Bash(./bin/run --project)",
       "Bash(../scripts/deploy.sh)",
       "Bash(cat ~/config.json)",
+      "Bash(cat ~/dead/missing.conf)",
       "Read"
     ],
     "deny": [
@@ -734,7 +748,7 @@ func TestIntegrationBashSweep(t *testing.T) {
     ]
   }
 }`
-	file := filepath.Join(dir, "settings.json")
+	file := filepath.Join(claudeDir, "settings.json")
 	os.WriteFile(file, []byte(input), 0o644)
 
 	var buf bytes.Buffer
@@ -746,33 +760,37 @@ func TestIntegrationBashSweep(t *testing.T) {
 	data, _ := os.ReadFile(file)
 	got := string(data)
 
-	// dead-only bash entry should be swept
+	// dead-only absolute path bash entry should be swept
 	if strings.Contains(got, `"Bash(git -C `+deadPath) {
-		t.Error("bash entry with only dead path was not swept")
+		t.Error("bash entry with only dead absolute path was not swept")
 	}
-	// bash entry with alive path should be kept
+	// bash entry with alive absolute path should be kept
 	if !strings.Contains(got, `"Bash(git -C `+existingPath) {
-		t.Error("bash entry with alive path was removed")
+		t.Error("bash entry with alive absolute path was removed")
 	}
-	// bash entry with one alive path (cp) should be kept
+	// bash entry with one alive absolute path (cp) should be kept
 	if !strings.Contains(got, `"Bash(cp `+existingPath) {
-		t.Error("bash entry with one alive path was removed")
+		t.Error("bash entry with one alive absolute path was removed")
 	}
-	// bash entry without absolute paths should be kept
+	// bash entry without paths should be kept
 	if !strings.Contains(got, `"Bash(npm run *)`) {
-		t.Error("bash entry without absolute paths was removed")
+		t.Error("bash entry without paths was removed")
 	}
-	// dot-slash relative path should not be extracted as absolute
+	// dot-slash relative path with existing file should be kept
 	if !strings.Contains(got, `"Bash(./bin/run --project)`) {
-		t.Error("bash entry with dot-slash relative path was removed")
+		t.Error("bash entry with alive dot-slash relative path was removed")
 	}
-	// dot-dot-slash relative path should not be extracted as absolute
+	// dot-dot-slash relative path with existing file should be kept
 	if !strings.Contains(got, `"Bash(../scripts/deploy.sh)`) {
-		t.Error("bash entry with dot-dot-slash relative path was removed")
+		t.Error("bash entry with alive dot-dot-slash relative path was removed")
 	}
-	// tilde home path should not be extracted as absolute
+	// tilde home path with existing file should be kept
 	if !strings.Contains(got, `"Bash(cat ~/config.json)`) {
-		t.Error("bash entry with tilde home path was removed")
+		t.Error("bash entry with alive tilde home path was removed")
+	}
+	// tilde home path with dead file should be swept
+	if strings.Contains(got, `"Bash(cat ~/dead/missing.conf)`) {
+		t.Error("bash entry with dead tilde home path was not swept")
 	}
 	// non-bash entry should be kept
 	if !strings.Contains(got, `"Read"`) {

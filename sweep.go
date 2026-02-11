@@ -9,6 +9,8 @@ import (
 
 var absPathRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.~])/[A-Za-z0-9_./-]+`)
 
+var relPathRe = regexp.MustCompile(`(?:^|\s|=)(\.\./[A-Za-z0-9_./-]+|\./[A-Za-z0-9_./-]+|~/[A-Za-z0-9_./-]+)`)
+
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
 // extractToolEntry splits a permission entry like "Read(/path/to/file)"
@@ -110,19 +112,56 @@ func extractAbsolutePaths(s string) []string {
 	return paths
 }
 
+// extractRelativePaths extracts all relative paths (../, ./, ~/) from a string.
+func extractRelativePaths(s string) []string {
+	matches := relPathRe.FindAllStringSubmatch(s, -1)
+	var paths []string
+	for _, m := range matches {
+		cleaned := strings.TrimRight(m[1], "/.")
+		if cleaned == "" {
+			continue
+		}
+		paths = append(paths, cleaned)
+	}
+	return paths
+}
+
 // BashToolSweeper sweeps Bash permission entries where all
-// absolute paths in the specifier are non-existent.
-// Entries with no absolute paths or at least one existing path are kept.
+// resolvable paths in the specifier are non-existent.
+// Entries with no resolvable paths or at least one existing path are kept.
 type BashToolSweeper struct {
 	checker PathChecker
+	homeDir string
+	baseDir string
 }
 
 func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
-	paths := extractAbsolutePaths(specifier)
-	if len(paths) == 0 {
+	absPaths := extractAbsolutePaths(specifier)
+	relPaths := extractRelativePaths(specifier)
+
+	// Resolve relative paths to absolute paths.
+	var resolved []string
+	for _, p := range relPaths {
+		switch {
+		case strings.HasPrefix(p, "~/"):
+			if b.homeDir == "" {
+				continue
+			}
+			resolved = append(resolved, filepath.Join(b.homeDir, p[2:]))
+		case strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../"):
+			if b.baseDir == "" {
+				continue
+			}
+			resolved = append(resolved, filepath.Join(b.baseDir, p))
+		}
+	}
+
+	allPaths := append(absPaths, resolved...)
+	if len(allPaths) == 0 {
 		return ToolSweepResult{}
 	}
-	for _, p := range paths {
+
+	for _, p := range allPaths {
 		if b.checker.Exists(ctx, p) {
 			return ToolSweepResult{}
 		}
@@ -197,7 +236,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 		ToolRead: re, ToolEdit: re, ToolWrite: re,
 	}
 	if cfg.bashSweep {
-		tools[ToolBash] = &BashToolSweeper{checker: checker}
+		tools[ToolBash] = &BashToolSweeper{checker: checker, homeDir: homeDir, baseDir: cfg.baseDir}
 	}
 
 	return &PermissionSweeper{tools: tools}

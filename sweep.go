@@ -158,7 +158,9 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) Too
 		}
 	}
 
-	allPaths := append(absPaths, resolved...)
+	allPaths := make([]string, 0, len(absPaths)+len(resolved))
+	allPaths = append(allPaths, absPaths...)
+	allPaths = append(allPaths, resolved...)
 	if len(allPaths) == 0 {
 		return ToolSweepResult{}
 	}

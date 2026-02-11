@@ -10,20 +10,27 @@
   "permissions": {
     "deny": [
       "Bash(rm -rf *)",
-      "Read(/etc/passwd)"
+      "Read(//etc/passwd)",
+      "Bash(rm -rf /dead/secret)"
     ],
     "ask": [
-      "Bash(docker *)"
+      "Bash(docker *)",
+      "Edit(/dead/docs)",
+      "Write(~/dead/notes.md)"
     ],
     "allow": [
       "Write",
       "Bash(npm run *)",
       "Read",
-      "Edit(/src/**/*.ts)",
+      "Read(//dead/project/file.txt)",
       "Bash(git commit *)",
       "WebFetch(domain:github.com)",
       "Task(Explore)",
-      "mcp__github__search_code"
+      "mcp__github__search_code",
+      "Read(~/dead/config.json)",
+      "Edit(./src/dead.go)",
+      "Write(../dead.go)",
+      "Read(**/*.ts)"
     ]
   },
   "sandbox": {

@@ -19,6 +19,10 @@ type alwaysTrue struct{}
 
 func (alwaysTrue) Exists(context.Context, string) bool { return true }
 
+type alwaysFalse struct{}
+
+func (alwaysFalse) Exists(context.Context, string) bool { return false }
+
 var update = flag.Bool("update", false, "update golden files")
 
 func TestGolden(t *testing.T) {
@@ -60,7 +64,7 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := cctidy.NewSettingsJSONFormatter().Format(t.Context(), input)
+	result, err := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysFalse{}, "")).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}
@@ -308,7 +312,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -346,7 +350,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(alwaysTrue{})},
-			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -369,8 +373,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
+			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -512,8 +516,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -533,8 +537,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		err := cli.runTargets(t.Context(), targets)
 		if !errors.Is(err, errUnformatted) {
@@ -553,8 +557,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: missing, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
+			{path: missing, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -574,8 +578,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, Verbose: true, checker: alwaysTrue{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter()},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter()},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(alwaysTrue{}, ""))},
 		}
 		cli.runTargets(t.Context(), targets)
 
@@ -658,4 +662,106 @@ func TestResolveTargets(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestIntegrationSweep(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	existingPath := filepath.Join(dir, "project-a")
+	os.Mkdir(existingPath, 0o755)
+	deadPath := filepath.Join(dir, "gone-project")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Read(/` + existingPath + `)",
+      "Read(/` + deadPath + `)",
+      "Read",
+      "Write"
+    ],
+    "deny": [
+      "Bash(rm -rf ` + deadPath + `)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	if !strings.Contains(got, existingPath) {
+		t.Error("existing path entry was removed")
+	}
+	if strings.Contains(got, `"Read(/`+deadPath) {
+		t.Error("dead path entry in allow was not removed")
+	}
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-path entry was removed")
+	}
+	if !strings.Contains(got, `"Bash(rm -rf `+deadPath) {
+		t.Error("deny entry with dead path was incorrectly swept")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Swept:") {
+		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestSweepCheck(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deadPath := filepath.Join(dir, "gone-project")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Read(/` + deadPath + `)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Check: true, checker: &osPathChecker{}, w: &buf}
+	err := cli.Run(t.Context(), dir)
+	if !errors.Is(err, errUnformatted) {
+		t.Fatalf("expected errUnformatted, got: %v", err)
+	}
+}
+
+func TestSweepDryRun(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deadPath := filepath.Join(dir, "gone-project")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Read(/` + deadPath + `)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, DryRun: true, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	if string(data) != input {
+		t.Error("file was modified in dry-run mode")
+	}
 }

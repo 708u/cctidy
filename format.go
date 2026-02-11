@@ -50,11 +50,24 @@ func (s *ClaudeJSONFormatterStats) Summary() string {
 type SettingsJSONFormatterStats struct {
 	SizeBefore int
 	SizeAfter  int
+	SweptAllow int
+	SweptAsk   int
+	Warns      []string
 }
 
 func (s *SettingsJSONFormatterStats) Summary() string {
-	return fmt.Sprintf("Size: %s -> %s bytes\n",
+	var b strings.Builder
+	swept := s.SweptAllow + s.SweptAsk
+	if swept > 0 {
+		fmt.Fprintf(&b, "Swept: %d allow, %d ask entries\n",
+			s.SweptAllow, s.SweptAsk)
+	}
+	for _, w := range s.Warns {
+		fmt.Fprintf(&b, "Skipped: %s\n", w)
+	}
+	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
+	return b.String()
 }
 
 // ClaudeJSONFormatter formats ~/.claude.json with path cleaning
@@ -188,16 +201,27 @@ func (c *claudeJSONData) cleanGitHubRepoPaths(ctx context.Context, stats *Claude
 
 // SettingsJSONFormatter formats settings.json / settings.local.json
 // by sorting keys recursively and sorting homogeneous arrays.
-// No path cleaning is performed.
-type SettingsJSONFormatter struct{}
+// When Sweeper is provided, dead permission paths are swept.
+type SettingsJSONFormatter struct {
+	Sweeper *PermissionSweeper
+}
 
-func NewSettingsJSONFormatter() *SettingsJSONFormatter { return &SettingsJSONFormatter{} }
+func NewSettingsJSONFormatter(sweeper *PermissionSweeper) *SettingsJSONFormatter {
+	return &SettingsJSONFormatter{Sweeper: sweeper}
+}
 
-func (s *SettingsJSONFormatter) Format(_ context.Context, data []byte) (*FormatResult, error) {
+func (s *SettingsJSONFormatter) Format(ctx context.Context, data []byte) (*FormatResult, error) {
 	obj, err := decodeJSON(data)
 	if err != nil {
 		return nil, err
 	}
+
+	stats := &SettingsJSONFormatterStats{SizeBefore: len(data)}
+
+	sr := s.Sweeper.Sweep(ctx, obj)
+	stats.SweptAllow = sr.SweptAllow
+	stats.SweptAsk = sr.SweptAsk
+	stats.Warns = sr.Warns
 
 	sortArraysRecursive(obj)
 
@@ -206,10 +230,8 @@ func (s *SettingsJSONFormatter) Format(_ context.Context, data []byte) (*FormatR
 		return nil, err
 	}
 
-	return &FormatResult{
-		Data:  out,
-		Stats: &SettingsJSONFormatterStats{SizeBefore: len(data), SizeAfter: len(out)},
-	}, nil
+	stats.SizeAfter = len(out)
+	return &FormatResult{Data: out, Stats: stats}, nil
 }
 
 func decodeJSON(data []byte) (map[string]any, error) {

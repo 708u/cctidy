@@ -192,45 +192,70 @@ func TestSettingsJSONFormatter(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
+		checker PathChecker
 		want    string
 		wantErr bool
 	}{
 		{
-			name:  "settings-style key sorting",
-			input: `{"permissions":{"allow":["Bash","Read"]},"env":{"Z_VAR":"z","A_VAR":"a"},"hooks":{"preToolUse":[]}}`,
-			want:  "{\n  \"env\": {\n    \"A_VAR\": \"a\",\n    \"Z_VAR\": \"z\"\n  },\n  \"hooks\": {\n    \"preToolUse\": []\n  },\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\"\n    ]\n  }\n}\n",
+			name:    "settings-style key sorting",
+			input:   `{"permissions":{"allow":["Bash","Read"]},"env":{"Z_VAR":"z","A_VAR":"a"},"hooks":{"preToolUse":[]}}`,
+			checker: alwaysTrue{},
+			want:    "{\n  \"env\": {\n    \"A_VAR\": \"a\",\n    \"Z_VAR\": \"z\"\n  },\n  \"hooks\": {\n    \"preToolUse\": []\n  },\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\"\n    ]\n  }\n}\n",
 		},
 		{
-			name:  "sort string arrays in permissions",
-			input: `{"permissions":{"allow":["Write","Bash","Read"],"deny":["mcp__dangerous","mcp__admin"]}}`,
-			want:  "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\",\n      \"Write\"\n    ],\n    \"deny\": [\n      \"mcp__admin\",\n      \"mcp__dangerous\"\n    ]\n  }\n}\n",
+			name:    "sort string arrays in permissions",
+			input:   `{"permissions":{"allow":["Write","Bash","Read"],"deny":["mcp__dangerous","mcp__admin"]}}`,
+			checker: alwaysTrue{},
+			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Bash\",\n      \"Read\",\n      \"Write\"\n    ],\n    \"deny\": [\n      \"mcp__admin\",\n      \"mcp__dangerous\"\n    ]\n  }\n}\n",
 		},
 		{
-			name:  "no projects or githubRepoPaths added",
-			input: `{"apiKey":"test"}`,
-			want:  "{\n  \"apiKey\": \"test\"\n}\n",
+			name:    "no projects or githubRepoPaths added",
+			input:   `{"apiKey":"test"}`,
+			checker: alwaysTrue{},
+			want:    "{\n  \"apiKey\": \"test\"\n}\n",
 		},
 		{
 			name:    "invalid JSON",
 			input:   `{broken`,
+			checker: alwaysTrue{},
 			wantErr: true,
 		},
 		{
-			name:  "empty object",
-			input: `{}`,
-			want:  "{}\n",
+			name:    "empty object",
+			input:   `{}`,
+			checker: alwaysTrue{},
+			want:    "{}\n",
 		},
 		{
-			name:  "nested objects sorted recursively",
-			input: `{"z":{"b":2,"a":1},"a":{"d":4,"c":3}}`,
-			want:  "{\n  \"a\": {\n    \"c\": 3,\n    \"d\": 4\n  },\n  \"z\": {\n    \"a\": 1,\n    \"b\": 2\n  }\n}\n",
+			name:    "nested objects sorted recursively",
+			input:   `{"z":{"b":2,"a":1},"a":{"d":4,"c":3}}`,
+			checker: alwaysTrue{},
+			want:    "{\n  \"a\": {\n    \"c\": 3,\n    \"d\": 4\n  },\n  \"z\": {\n    \"a\": 1,\n    \"b\": 2\n  }\n}\n",
+		},
+		{
+			name:    "sweep dead permission paths",
+			input:   `{"permissions":{"allow":["Read(//dead/path)","Read"]}}`,
+			checker: checkerFor(),
+			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Read\"\n    ]\n  }\n}\n",
+		},
+		{
+			name:    "keep alive permission paths",
+			input:   `{"permissions":{"allow":["Read(//alive/path)","Read"]}}`,
+			checker: checkerFor("/alive/path"),
+			want:    "{\n  \"permissions\": {\n    \"allow\": [\n      \"Read\",\n      \"Read(//alive/path)\"\n    ]\n  }\n}\n",
+		},
+		{
+			name:    "sweep allow and ask but keep deny",
+			input:   `{"permissions":{"allow":["Read(//dead/a)"],"deny":["Read(//dead/b)"],"ask":["Edit(//dead/c)"]}}`,
+			checker: checkerFor(),
+			want:    "{\n  \"permissions\": {\n    \"allow\": [],\n    \"ask\": [],\n    \"deny\": [\n      \"Read(//dead/b)\"\n    ]\n  }\n}\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := NewSettingsJSONFormatter().Format(t.Context(), []byte(tt.input))
+			result, err := NewSettingsJSONFormatter(NewPermissionSweeper(tt.checker, "")).Format(t.Context(), []byte(tt.input))
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -251,7 +276,7 @@ func TestSettingsJSONFormatter(t *testing.T) {
 func TestSettingsJSONFormatterDoesNotAddProjects(t *testing.T) {
 	t.Parallel()
 	input := `{"key": "value"}`
-	result, err := NewSettingsJSONFormatter().Format(t.Context(), []byte(input))
+	result, err := NewSettingsJSONFormatter(NewPermissionSweeper(alwaysTrue{}, "")).Format(t.Context(), []byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

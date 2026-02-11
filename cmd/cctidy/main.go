@@ -36,6 +36,10 @@ type Formatter interface {
 	Format(context.Context, []byte) (*cctidy.FormatResult, error)
 }
 
+type Sweeper interface {
+	Sweep(context.Context, map[string]any) *cctidy.SweepResult
+}
+
 type targetFile struct {
 	path      string
 	formatter Formatter
@@ -162,26 +166,29 @@ func (c *CLI) runTargets(ctx context.Context, targets []targetFile) error {
 }
 
 func (c *CLI) resolveTargets(home string) []targetFile {
-	if c.Target != "" {
-		var f Formatter = cctidy.NewSettingsJSONFormatter()
-		if filepath.Base(c.Target) == ".claude.json" {
-			f = cctidy.NewClaudeJSONFormatter(c.checker)
-		}
-		return []targetFile{{path: c.Target, formatter: f}}
+	if c.Target == "" {
+		return c.defaultTargets(home)
 	}
-	return c.defaultTargets(home)
+	baseDir := filepath.Dir(filepath.Dir(c.Target))
+	sweeper := cctidy.NewPermissionSweeper(c.checker, home, cctidy.WithBaseDir(baseDir))
+	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
+	if filepath.Base(c.Target) == ".claude.json" {
+		f = cctidy.NewClaudeJSONFormatter(c.checker)
+	}
+	return []targetFile{{path: c.Target, formatter: f}}
 }
 
 func (c *CLI) defaultTargets(home string) []targetFile {
 	cwd, _ := os.Getwd()
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
-	settings := cctidy.NewSettingsJSONFormatter()
+	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home))
+	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, cctidy.WithBaseDir(cwd)))
 	return []targetFile{
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
-		{path: filepath.Join(home, ".claude", "settings.json"), formatter: settings},
-		{path: filepath.Join(home, ".claude", "settings.local.json"), formatter: settings},
-		{path: filepath.Join(cwd, ".claude", "settings.json"), formatter: settings},
-		{path: filepath.Join(cwd, ".claude", "settings.local.json"), formatter: settings},
+		{path: filepath.Join(home, ".claude", "settings.json"), formatter: globalSettings},
+		{path: filepath.Join(home, ".claude", "settings.local.json"), formatter: globalSettings},
+		{path: filepath.Join(cwd, ".claude", "settings.json"), formatter: projectSettings},
+		{path: filepath.Join(cwd, ".claude", "settings.local.json"), formatter: projectSettings},
 	}
 }
 

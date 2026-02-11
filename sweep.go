@@ -97,10 +97,10 @@ type SweepResult struct {
 	Warns      []string
 }
 
-// sweepCategory pairs a permission category key with its counter.
+// sweepCategory pairs a permission category key with its swept count.
 type sweepCategory struct {
 	key   string
-	count *int
+	count int
 }
 
 // sweeperConfig collects options before building a PermissionSweeper.
@@ -170,11 +170,11 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 	}
 
 	categories := []sweepCategory{
-		{key: "allow", count: &result.SweptAllow},
-		{key: "ask", count: &result.SweptAsk},
+		{key: "allow"},
+		{key: "ask"},
 	}
 
-	for _, cat := range categories {
+	for i, cat := range categories {
 		raw, ok := perms[cat.key]
 		if !ok {
 			continue
@@ -193,7 +193,7 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 			}
 
 			if p.shouldSweep(ctx, entry, result) {
-				*cat.count++
+				categories[i].count++
 				continue
 			}
 
@@ -202,6 +202,8 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 		perms[cat.key] = kept
 	}
 
+	result.SweptAllow = categories[0].count
+	result.SweptAsk = categories[1].count
 	return result
 }
 

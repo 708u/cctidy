@@ -8,6 +8,87 @@ import (
 	"testing"
 )
 
+func TestFindProjectRoot(t *testing.T) {
+	t.Parallel()
+
+	t.Run("claude dir in cwd", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		os.Mkdir(filepath.Join(dir, ".claude"), 0o755)
+
+		got := findProjectRoot(dir)
+		if got != dir {
+			t.Errorf("got %s, want %s", got, dir)
+		}
+	})
+
+	t.Run("claude dir in parent", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		os.Mkdir(filepath.Join(root, ".claude"), 0o755)
+		sub := filepath.Join(root, "sub")
+		os.Mkdir(sub, 0o755)
+
+		got := findProjectRoot(sub)
+		if got != root {
+			t.Errorf("got %s, want %s", got, root)
+		}
+	})
+
+	t.Run("claude dir in grandparent", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		os.Mkdir(filepath.Join(root, ".claude"), 0o755)
+		deep := filepath.Join(root, "a", "b")
+		os.MkdirAll(deep, 0o755)
+
+		got := findProjectRoot(deep)
+		if got != root {
+			t.Errorf("got %s, want %s", got, root)
+		}
+	})
+
+	t.Run("nearest claude dir wins", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		os.Mkdir(filepath.Join(root, ".claude"), 0o755)
+		nested := filepath.Join(root, "nested")
+		os.MkdirAll(filepath.Join(nested, ".claude"), 0o755)
+		sub := filepath.Join(nested, "sub")
+		os.Mkdir(sub, 0o755)
+
+		got := findProjectRoot(sub)
+		if got != nested {
+			t.Errorf("got %s, want %s", got, nested)
+		}
+	})
+
+	t.Run("no claude dir returns original", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		sub := filepath.Join(dir, "empty")
+		os.Mkdir(sub, 0o755)
+
+		got := findProjectRoot(sub)
+		if got != sub {
+			t.Errorf("got %s, want %s", got, sub)
+		}
+	})
+
+	t.Run("claude file ignored", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, ".claude"), []byte("file"), 0o644)
+		sub := filepath.Join(dir, "sub")
+		os.Mkdir(sub, 0o755)
+
+		got := findProjectRoot(sub)
+		if got != sub {
+			t.Errorf("got %s, want %s (should ignore .claude file)", got, sub)
+		}
+	})
+}
+
 func TestWriteFile(t *testing.T) {
 	t.Parallel()
 

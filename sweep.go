@@ -163,15 +163,16 @@ func NewBashExcluder(cfg BashSweepConfig) *BashExcluder {
 
 // IsExcluded reports whether the specifier matches any exclusion rule.
 // Checks are applied in order: entries (exact), commands (first token),
-// paths (prefix match on extracted absolute paths).
-func (e *BashExcluder) IsExcluded(specifier string) bool {
+// paths (prefix match on pre-extracted absolute paths).
+func (e *BashExcluder) IsExcluded(specifier string, absPaths []string) bool {
 	if e.entries[specifier] {
 		return true
 	}
-	if cmd := firstToken(specifier); e.commands[cmd] {
+	cmd, _, _ := strings.Cut(specifier, " ")
+	if e.commands[cmd] {
 		return true
 	}
-	for _, p := range extractAbsolutePaths(specifier) {
+	for _, p := range absPaths {
 		for _, prefix := range e.paths {
 			if strings.HasPrefix(p, prefix) {
 				return true
@@ -179,14 +180,6 @@ func (e *BashExcluder) IsExcluded(specifier string) bool {
 		}
 	}
 	return false
-}
-
-// firstToken returns the first whitespace-delimited token of s.
-func firstToken(s string) string {
-	if i := strings.IndexByte(s, ' '); i >= 0 {
-		return s[:i]
-	}
-	return s
 }
 
 // BashToolSweeper sweeps Bash permission entries where all
@@ -200,11 +193,11 @@ type BashToolSweeper struct {
 }
 
 func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
-	if b.excluder != nil && b.excluder.IsExcluded(specifier) {
+	absPaths := extractAbsolutePaths(specifier)
+
+	if b.excluder.IsExcluded(specifier, absPaths) {
 		return ToolSweepResult{}
 	}
-
-	absPaths := extractAbsolutePaths(specifier)
 	relPaths := extractRelativePaths(specifier)
 
 	// Resolve relative paths to absolute paths.
@@ -316,11 +309,15 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 		ToolRead: re, ToolEdit: re, ToolWrite: re,
 	}
 	if cfg.bashSweep {
+		excl := cfg.bashExcluder
+		if excl == nil {
+			excl = NewBashExcluder(BashSweepConfig{})
+		}
 		tools[ToolBash] = &BashToolSweeper{
 			checker:  checker,
 			homeDir:  homeDir,
 			baseDir:  cfg.baseDir,
-			excluder: cfg.bashExcluder,
+			excluder: excl,
 		}
 	}
 

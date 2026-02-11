@@ -191,12 +191,14 @@ func (c *CLI) bashSweepOpts() []cctidy.SweepOption {
 	if !c.bashSweepEnabled() {
 		return nil
 	}
-	opts := []cctidy.SweepOption{cctidy.WithBashSweep()}
+	var bashCfg cctidy.BashSweepConfig
 	if c.cfg != nil {
-		excl := cctidy.NewBashExcluder(c.cfg.Sweep.Bash)
-		opts = append(opts, cctidy.WithBashExcluder(excl))
+		bashCfg = c.cfg.Sweep.Bash
 	}
-	return opts
+	return []cctidy.SweepOption{
+		cctidy.WithBashSweep(),
+		cctidy.WithBashExcluder(cctidy.NewBashExcluder(bashCfg)),
+	}
 }
 
 func (c *CLI) resolveTargets(home string) []targetFile {

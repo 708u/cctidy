@@ -14,7 +14,7 @@ cctidy [flags]
 | `--backup`            |       | false   | Create backup before writing      |
 | `--dry-run`           |       | false   | Show changes without writing      |
 | `--check`             |       | false   | Exit with 1 if any file is dirty  |
-| `--include-bash-tool` |       | false   | Include Bash entries in sweeping  |
+| `--sweep-bash` |       | false   | Include Bash entries in sweeping  |
 | `--config`            |       | (auto)  | Path to config file               |
 | `--verbose`           | `-v`  | false   | Show formatting details           |
 | `--version`           |       |         | Print version                     |
@@ -65,7 +65,7 @@ exclude_paths = [
 
 ### Priority: CLI vs Config
 
-| config `enabled` | `--include-bash-tool` | Result    |
+| config `enabled` | `--sweep-bash` | Result    |
 | ---------------- | --------------------- | --------- |
 | unset / false    | absent                | sweep OFF |
 | unset / false    | present               | sweep ON  |

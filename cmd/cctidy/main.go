@@ -19,14 +19,14 @@ import (
 var errUnformatted = errors.New("unformatted files detected")
 
 type CLI struct {
-	Target          string           `help:"Path to a specific file to format." short:"t" name:"target"`
-	Backup          bool             `help:"Create backup before writing."`
-	DryRun          bool             `help:"Show changes without writing." name:"dry-run"`
-	Check           bool             `help:"Exit with 1 if any file needs formatting."`
-	IncludeBashTool bool             `help:"Include Bash tool entries in permission sweeping." name:"include-bash-tool"`
-	Config          string           `help:"Path to config file." name:"config"`
-	Verbose         bool             `help:"Show formatting details." short:"v"`
-	Version         kong.VersionFlag `help:"Print version."`
+	Target    string           `help:"Path to a specific file to format." short:"t" name:"target"`
+	Backup    bool             `help:"Create backup before writing."`
+	DryRun    bool             `help:"Show changes without writing." name:"dry-run"`
+	Check     bool             `help:"Exit with 1 if any file needs formatting."`
+	SweepBash bool             `help:"Sweep Bash tool permission entries." name:"sweep-bash"`
+	Config    string           `help:"Path to config file." name:"config"`
+	Verbose   bool             `help:"Show formatting details." short:"v"`
+	Version   kong.VersionFlag `help:"Print version."`
 
 	checker cctidy.PathChecker
 	cfg     *cctidy.Config
@@ -177,9 +177,9 @@ func (c *CLI) runTargets(ctx context.Context, targets []targetFile) error {
 // sweeping should be active. CLI flag takes precedence over config.
 func (c *CLI) bashSweepConfig() (cctidy.BashSweepConfig, bool) {
 	if c.cfg == nil {
-		return cctidy.BashSweepConfig{}, c.IncludeBashTool
+		return cctidy.BashSweepConfig{}, c.SweepBash
 	}
-	if c.IncludeBashTool {
+	if c.SweepBash {
 		return c.cfg.Sweep.Bash, true
 	}
 	if c.cfg.Sweep.Bash.Enabled {

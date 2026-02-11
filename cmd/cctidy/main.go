@@ -18,8 +18,6 @@ import (
 
 var errUnformatted = errors.New("unformatted files detected")
 
-var version = "dev"
-
 type CLI struct {
 	Target          string           `help:"Path to a specific file to format." short:"t" name:"target"`
 	Backup          bool             `help:"Create backup before writing."`
@@ -74,7 +72,7 @@ func run() int {
 		w:       os.Stderr,
 	}
 	kong.Parse(&cli,
-		kong.Vars{"version": version},
+		kong.Vars{"version": versionString()},
 	)
 
 	if cli.Check && (cli.Backup || cli.DryRun) {

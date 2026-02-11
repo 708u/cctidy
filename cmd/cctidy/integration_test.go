@@ -724,6 +724,9 @@ func TestIntegrationBashSweep(t *testing.T) {
       "Bash(git -C ` + existingPath + ` status)",
       "Bash(cp ` + existingPath + ` ` + deadPath + `)",
       "Bash(npm run *)",
+      "Bash(./bin/run --project)",
+      "Bash(../scripts/deploy.sh)",
+      "Bash(cat ~/config.json)",
       "Read"
     ],
     "deny": [
@@ -758,6 +761,18 @@ func TestIntegrationBashSweep(t *testing.T) {
 	// bash entry without absolute paths should be kept
 	if !strings.Contains(got, `"Bash(npm run *)`) {
 		t.Error("bash entry without absolute paths was removed")
+	}
+	// dot-slash relative path should not be extracted as absolute
+	if !strings.Contains(got, `"Bash(./bin/run --project)`) {
+		t.Error("bash entry with dot-slash relative path was removed")
+	}
+	// dot-dot-slash relative path should not be extracted as absolute
+	if !strings.Contains(got, `"Bash(../scripts/deploy.sh)`) {
+		t.Error("bash entry with dot-dot-slash relative path was removed")
+	}
+	// tilde home path should not be extracted as absolute
+	if !strings.Contains(got, `"Bash(cat ~/config.json)`) {
+		t.Error("bash entry with tilde home path was removed")
 	}
 	// non-bash entry should be kept
 	if !strings.Contains(got, `"Read"`) {

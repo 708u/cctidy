@@ -184,6 +184,7 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 			continue
 		}
 
+		// Filter out swept entries and replace the original array.
 		kept := make([]any, 0, len(arr))
 		for _, v := range arr {
 			entry, ok := v.(string)

@@ -205,11 +205,27 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 	return []targetFile{{path: c.Target, formatter: f}}
 }
 
+func findProjectRoot(dir string) string {
+	cur := dir
+	for {
+		candidate := filepath.Join(cur, ".claude")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return cur
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return dir
+		}
+		cur = parent
+	}
+}
+
 func (c *CLI) defaultTargets(home string) []targetFile {
 	cwd, _ := os.Getwd()
+	projectRoot := findProjectRoot(cwd)
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
 	var globalOpts []cctidy.SweepOption
-	projectOpts := []cctidy.SweepOption{cctidy.WithBaseDir(cwd)}
+	projectOpts := []cctidy.SweepOption{cctidy.WithBaseDir(projectRoot)}
 	if bashCfg, ok := c.bashSweepConfig(); ok {
 		bashOpt := cctidy.WithBashSweep(bashCfg)
 		globalOpts = append(globalOpts, bashOpt)
@@ -221,8 +237,8 @@ func (c *CLI) defaultTargets(home string) []targetFile {
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
 		{path: filepath.Join(home, ".claude", "settings.json"), formatter: globalSettings},
 		{path: filepath.Join(home, ".claude", "settings.local.json"), formatter: globalSettings},
-		{path: filepath.Join(cwd, ".claude", "settings.json"), formatter: projectSettings},
-		{path: filepath.Join(cwd, ".claude", "settings.local.json"), formatter: projectSettings},
+		{path: filepath.Join(projectRoot, ".claude", "settings.json"), formatter: projectSettings},
+		{path: filepath.Join(projectRoot, ".claude", "settings.local.json"), formatter: projectSettings},
 	}
 }
 

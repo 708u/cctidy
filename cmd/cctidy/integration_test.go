@@ -56,7 +56,8 @@ func TestSettingsGolden(t *testing.T) {
 		t.Fatalf("reading input: %v", err)
 	}
 
-	result, err := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.NoPathsExist{}, "")).Format(t.Context(), input)
+	checker := testutil.CheckerFor("/alive/repo")
+	result, err := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(checker, "", cctidy.WithBashSweep())).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
 	}
@@ -705,6 +706,116 @@ func TestIntegrationSweep(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Swept:") {
 		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationBashSweep(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	existingPath := filepath.Join(dir, "alive-repo")
+	os.Mkdir(existingPath, 0o755)
+	deadPath := filepath.Join(dir, "dead-repo")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)",
+      "Bash(git -C ` + existingPath + ` status)",
+      "Bash(cp ` + existingPath + ` ` + deadPath + `)",
+      "Bash(npm run *)",
+      "Bash(./bin/run --project)",
+      "Bash(../scripts/deploy.sh)",
+      "Bash(cat ~/config.json)",
+      "Read"
+    ],
+    "deny": [
+      "Bash(rm -rf ` + deadPath + `)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, IncludeBashTool: true, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// dead-only bash entry should be swept
+	if strings.Contains(got, `"Bash(git -C `+deadPath) {
+		t.Error("bash entry with only dead path was not swept")
+	}
+	// bash entry with alive path should be kept
+	if !strings.Contains(got, `"Bash(git -C `+existingPath) {
+		t.Error("bash entry with alive path was removed")
+	}
+	// bash entry with one alive path (cp) should be kept
+	if !strings.Contains(got, `"Bash(cp `+existingPath) {
+		t.Error("bash entry with one alive path was removed")
+	}
+	// bash entry without absolute paths should be kept
+	if !strings.Contains(got, `"Bash(npm run *)`) {
+		t.Error("bash entry without absolute paths was removed")
+	}
+	// dot-slash relative path should not be extracted as absolute
+	if !strings.Contains(got, `"Bash(./bin/run --project)`) {
+		t.Error("bash entry with dot-slash relative path was removed")
+	}
+	// dot-dot-slash relative path should not be extracted as absolute
+	if !strings.Contains(got, `"Bash(../scripts/deploy.sh)`) {
+		t.Error("bash entry with dot-dot-slash relative path was removed")
+	}
+	// tilde home path should not be extracted as absolute
+	if !strings.Contains(got, `"Bash(cat ~/config.json)`) {
+		t.Error("bash entry with tilde home path was removed")
+	}
+	// non-bash entry should be kept
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-bash entry was removed")
+	}
+	// deny bash entry should never be swept
+	if !strings.Contains(got, `"Bash(rm -rf `+deadPath) {
+		t.Error("deny bash entry was incorrectly swept")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Swept:") {
+		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationBashSweepDisabledByDefault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deadPath := filepath.Join(dir, "dead-repo")
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	// SweepBash is NOT set
+	cli := &CLI{Target: file, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	if !strings.Contains(got, `"Bash(git -C `+deadPath) {
+		t.Error("bash entry was swept without --sweep-bash flag")
 	}
 }
 

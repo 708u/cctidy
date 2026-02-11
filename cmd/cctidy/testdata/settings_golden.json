@@ -113,6 +113,10 @@
   "outputStyle": "Concise",
   "permissions": {
     "allow": [
+      "Bash(../scripts/deploy.sh)",
+      "Bash(./bin/run --project)",
+      "Bash(cat ~/config.json)",
+      "Bash(git -C /alive/repo pull)",
       "Bash(git commit *)",
       "Bash(npm run *)",
       "Edit(./src/dead.go)",

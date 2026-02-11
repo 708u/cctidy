@@ -100,6 +100,153 @@ func TestContainsGlob(t *testing.T) {
 	}
 }
 
+func TestExtractAbsolutePaths(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "single absolute path",
+			input: "git -C /home/user/repo status",
+			want:  []string{"/home/user/repo"},
+		},
+		{
+			name:  "glob stops extraction",
+			input: "npm run *",
+			want:  nil,
+		},
+		{
+			name:  "shell metachar stops at &&",
+			input: "cd /path && make",
+			want:  []string{"/path"},
+		},
+		{
+			name:  "semicolon stops extraction",
+			input: "cd /path;make",
+			want:  []string{"/path"},
+		},
+		{
+			name:  "equals-prefixed path",
+			input: "--config=/etc/app.conf",
+			want:  []string{"/etc/app.conf"},
+		},
+		{
+			name:  "multiple paths",
+			input: "cp /src/a /dst/b",
+			want:  []string{"/src/a", "/dst/b"},
+		},
+		{
+			name:  "no absolute paths",
+			input: "echo hello",
+			want:  nil,
+		},
+		{
+			name:  "trailing slash trimmed",
+			input: "ls /some/dir/",
+			want:  []string{"/some/dir"},
+		},
+		{
+			name:  "trailing dot trimmed",
+			input: "ls /some/path.",
+			want:  []string{"/some/path"},
+		},
+		{
+			name:  "root only path filtered",
+			input: "ls /",
+			want:  nil,
+		},
+		{
+			name:  "path with underscores and dots",
+			input: "cat /home/user/.config/app_v2/settings.json",
+			want:  []string{"/home/user/.config/app_v2/settings.json"},
+		},
+		{
+			name:  "dot-slash relative path is not extracted",
+			input: "./bin/run",
+			want:  nil,
+		},
+		{
+			name:  "dot-dot-slash relative path is not extracted",
+			input: "../src/main.go",
+			want:  nil,
+		},
+		{
+			name:  "tilde home path is not extracted",
+			input: "cat ~/config.json",
+			want:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := extractAbsolutePaths(tt.input)
+			if len(got) != len(tt.want) {
+				t.Fatalf("extractAbsolutePaths(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("extractAbsolutePaths(%q)[%d] = %q, want %q", tt.input, i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestBashToolSweeperShouldSweep(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		checker   PathChecker
+		specifier string
+		wantSweep bool
+	}{
+		{
+			name:      "all paths dead",
+			checker:   testutil.NoPathsExist{},
+			specifier: "git -C /dead/repo status",
+			wantSweep: true,
+		},
+		{
+			name:      "one path alive",
+			checker:   testutil.CheckerFor("/alive/src"),
+			specifier: "cp /alive/src /dead/dst",
+			wantSweep: false,
+		},
+		{
+			name:      "no absolute paths keeps entry",
+			checker:   testutil.NoPathsExist{},
+			specifier: "npm run *",
+			wantSweep: false,
+		},
+		{
+			name:      "all paths alive",
+			checker:   testutil.AllPathsExist{},
+			specifier: "cp /src/a /dst/b",
+			wantSweep: false,
+		},
+		{
+			name:      "multiple dead paths",
+			checker:   testutil.NoPathsExist{},
+			specifier: "cp /dead/a /dead/b",
+			wantSweep: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			sweeper := BashToolSweeper{checker: tt.checker}
+			result := sweeper.ShouldSweep(t.Context(), tt.specifier)
+			if result.Sweep != tt.wantSweep {
+				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
+			}
+		})
+	}
+}
+
 func TestReadEditToolSweeperShouldSweep(t *testing.T) {
 	t.Parallel()
 
@@ -307,6 +454,65 @@ func TestSweepPermissions(t *testing.T) {
 		}
 		if len(result.Warns) != 0 {
 			t.Errorf("expected no warnings, got %v", result.Warns)
+		}
+	})
+
+	t.Run("bash entries swept when enabled and all paths dead", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(git -C /dead/repo status)",
+					"Bash(npm run *)",
+					"Read",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", WithBashSweep()).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries kept when one path alive", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(cp /alive/src /dead/dst)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.CheckerFor("/alive/src"), "", WithBashSweep()).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries kept when sweep-bash not enabled", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(git -C /dead/repo status)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "").Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
 		}
 	})
 

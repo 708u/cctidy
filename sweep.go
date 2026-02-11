@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+var absPathRe = regexp.MustCompile(`(?:^|[^A-Za-z0-9_.~])/[A-Za-z0-9_./-]+`)
+
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
 // extractToolEntry splits a permission entry like "Read(/path/to/file)"
@@ -38,6 +40,7 @@ const (
 	ToolRead  ToolName = "Read"
 	ToolEdit  ToolName = "Edit"
 	ToolWrite ToolName = "Write"
+	ToolBash  ToolName = "Bash"
 )
 
 // ReadEditToolSweeper sweeps Read/Edit/Write permission entries
@@ -87,6 +90,46 @@ func (r *ReadEditToolSweeper) ShouldSweep(ctx context.Context, specifier string)
 	return ToolSweepResult{}
 }
 
+// extractAbsolutePaths extracts all absolute paths from a string.
+// Paths stop at glob metacharacters, shell metacharacters, whitespace,
+// parentheses, dollar signs, and braces.
+func extractAbsolutePaths(s string) []string {
+	matches := absPathRe.FindAllString(s, -1)
+	var paths []string
+	for _, m := range matches {
+		// The regex may include a leading non-path char from the
+		// lookbehind alternative; trim to the first '/'.
+		idx := strings.IndexByte(m, '/')
+		m = m[idx:]
+		cleaned := strings.TrimRight(m, "/.")
+		if cleaned == "" || cleaned == "/" {
+			continue
+		}
+		paths = append(paths, cleaned)
+	}
+	return paths
+}
+
+// BashToolSweeper sweeps Bash permission entries where all
+// absolute paths in the specifier are non-existent.
+// Entries with no absolute paths or at least one existing path are kept.
+type BashToolSweeper struct {
+	checker PathChecker
+}
+
+func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
+	paths := extractAbsolutePaths(specifier)
+	if len(paths) == 0 {
+		return ToolSweepResult{}
+	}
+	for _, p := range paths {
+		if b.checker.Exists(ctx, p) {
+			return ToolSweepResult{}
+		}
+	}
+	return ToolSweepResult{Sweep: true}
+}
+
 // SweepResult holds statistics from permission sweeping.
 // Deny entries are intentionally excluded from sweeping because they represent
 // explicit user prohibitions; removing stale deny rules costs nothing but
@@ -114,31 +157,50 @@ type PermissionSweeper struct {
 }
 
 // SweepOption configures a PermissionSweeper.
-type SweepOption func(*ReadEditToolSweeper)
+type SweepOption func(*sweepConfig)
+
+type sweepConfig struct {
+	baseDir   string
+	bashSweep bool
+}
 
 // WithBaseDir sets the base directory for resolving relative path specifiers.
 func WithBaseDir(dir string) SweepOption {
-	return func(s *ReadEditToolSweeper) {
-		s.baseDir = dir
+	return func(c *sweepConfig) {
+		c.baseDir = dir
+	}
+}
+
+// WithBashSweep enables sweeping of Bash permission entries whose
+// absolute paths are all non-existent.
+func WithBashSweep() SweepOption {
+	return func(c *sweepConfig) {
+		c.bashSweep = true
 	}
 }
 
 // NewPermissionSweeper creates a PermissionSweeper.
 // homeDir is required for resolving ~/path specifiers.
 func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOption) *PermissionSweeper {
+	var cfg sweepConfig
+	for _, o := range opts {
+		o(&cfg)
+	}
+
 	re := &ReadEditToolSweeper{
 		checker: checker,
 		homeDir: homeDir,
-	}
-	for _, o := range opts {
-		o(re)
+		baseDir: cfg.baseDir,
 	}
 
-	return &PermissionSweeper{
-		tools: map[ToolName]ToolSweeper{
-			ToolRead: re, ToolEdit: re, ToolWrite: re,
-		},
+	tools := map[ToolName]ToolSweeper{
+		ToolRead: re, ToolEdit: re, ToolWrite: re,
 	}
+	if cfg.bashSweep {
+		tools[ToolBash] = &BashToolSweeper{checker: checker}
+	}
+
+	return &PermissionSweeper{tools: tools}
 }
 
 // Sweep removes stale allow/ask permission entries from obj.

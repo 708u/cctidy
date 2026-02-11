@@ -21,12 +21,13 @@ var errUnformatted = errors.New("unformatted files detected")
 var version = "dev"
 
 type CLI struct {
-	Target  string           `help:"Path to a specific file to format." short:"t" name:"target"`
-	Backup  bool             `help:"Create backup before writing."`
-	DryRun  bool             `help:"Show changes without writing." name:"dry-run"`
-	Check   bool             `help:"Exit with 1 if any file needs formatting."`
-	Verbose bool             `help:"Show formatting details." short:"v"`
-	Version kong.VersionFlag `help:"Print version."`
+	Target          string           `help:"Path to a specific file to format." short:"t" name:"target"`
+	Backup          bool             `help:"Create backup before writing."`
+	DryRun          bool             `help:"Show changes without writing." name:"dry-run"`
+	Check           bool             `help:"Exit with 1 if any file needs formatting."`
+	IncludeBashTool bool             `help:"Include Bash tool entries in permission sweeping." name:"include-bash-tool"`
+	Verbose         bool             `help:"Show formatting details." short:"v"`
+	Version         kong.VersionFlag `help:"Print version."`
 
 	checker cctidy.PathChecker
 	w       io.Writer
@@ -170,7 +171,11 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 		return c.defaultTargets(home)
 	}
 	baseDir := filepath.Dir(filepath.Dir(c.Target))
-	sweeper := cctidy.NewPermissionSweeper(c.checker, home, cctidy.WithBaseDir(baseDir))
+	opts := []cctidy.SweepOption{cctidy.WithBaseDir(baseDir)}
+	if c.IncludeBashTool {
+		opts = append(opts, cctidy.WithBashSweep())
+	}
+	sweeper := cctidy.NewPermissionSweeper(c.checker, home, opts...)
 	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
 	if filepath.Base(c.Target) == ".claude.json" {
 		f = cctidy.NewClaudeJSONFormatter(c.checker)
@@ -181,8 +186,14 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 func (c *CLI) defaultTargets(home string) []targetFile {
 	cwd, _ := os.Getwd()
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
-	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home))
-	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, cctidy.WithBaseDir(cwd)))
+	var globalOpts []cctidy.SweepOption
+	projectOpts := []cctidy.SweepOption{cctidy.WithBaseDir(cwd)}
+	if c.IncludeBashTool {
+		globalOpts = append(globalOpts, cctidy.WithBashSweep())
+		projectOpts = append(projectOpts, cctidy.WithBashSweep())
+	}
+	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, globalOpts...))
+	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, projectOpts...))
 	return []targetFile{
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
 		{path: filepath.Join(home, ".claude", "settings.json"), formatter: globalSettings},

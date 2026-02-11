@@ -23,8 +23,7 @@ type SweepToolConfig struct {
 // BashSweepConfig controls Bash permission entry sweeping.
 type BashSweepConfig struct {
 	// Enabled turns on Bash sweep when true.
-	// nil means "not configured" (defer to CLI flag).
-	Enabled *bool `toml:"enabled"`
+	Enabled bool `toml:"enabled"`
 
 	// ExcludeEntries lists specifiers to exclude by exact match.
 	ExcludeEntries []string `toml:"exclude_entries"`

@@ -182,7 +182,7 @@ func (c *CLI) bashSweepConfig() (cctidy.BashSweepConfig, bool) {
 	if c.IncludeBashTool {
 		return c.cfg.Sweep.Bash, true
 	}
-	if c.cfg.Sweep.Bash.Enabled != nil && *c.cfg.Sweep.Bash.Enabled {
+	if c.cfg.Sweep.Bash.Enabled {
 		return c.cfg.Sweep.Bash, true
 	}
 	return cctidy.BashSweepConfig{}, false

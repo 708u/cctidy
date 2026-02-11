@@ -15,8 +15,8 @@ func TestLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Sweep.Bash.Enabled != nil {
-			t.Error("Enabled should be nil for missing config")
+		if cfg.Sweep.Bash.Enabled {
+			t.Error("Enabled should be false for missing config")
 		}
 		if len(cfg.Sweep.Bash.ExcludeEntries) != 0 {
 			t.Error("ExcludeEntries should be empty")
@@ -29,8 +29,8 @@ func TestLoadConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Sweep.Bash.Enabled != nil {
-			t.Error("Enabled should be nil for default missing config")
+		if cfg.Sweep.Bash.Enabled {
+			t.Error("Enabled should be false for default missing config")
 		}
 	})
 
@@ -60,7 +60,7 @@ exclude_paths = [
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Sweep.Bash.Enabled == nil || !*cfg.Sweep.Bash.Enabled {
+		if !cfg.Sweep.Bash.Enabled {
 			t.Error("Enabled should be true")
 		}
 		if len(cfg.Sweep.Bash.ExcludeEntries) != 2 {
@@ -84,10 +84,7 @@ exclude_paths = [
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Sweep.Bash.Enabled == nil {
-			t.Fatal("Enabled should not be nil")
-		}
-		if *cfg.Sweep.Bash.Enabled {
+		if cfg.Sweep.Bash.Enabled {
 			t.Error("Enabled should be false")
 		}
 	})
@@ -102,8 +99,8 @@ exclude_paths = [
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Sweep.Bash.Enabled != nil {
-			t.Error("Enabled should be nil when not set")
+		if cfg.Sweep.Bash.Enabled {
+			t.Error("Enabled should be false when not set")
 		}
 		if len(cfg.Sweep.Bash.ExcludeCommands) != 1 {
 			t.Errorf("ExcludeCommands len = %d, want 1", len(cfg.Sweep.Bash.ExcludeCommands))
@@ -135,8 +132,8 @@ exclude_paths = [
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if cfg.Sweep.Bash.Enabled != nil {
-			t.Error("Enabled should be nil for empty config")
+		if cfg.Sweep.Bash.Enabled {
+			t.Error("Enabled should be false for empty config")
 		}
 	})
 }

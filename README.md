@@ -56,6 +56,20 @@ sweeping.
 brew install 708u/tap/cctidy
 ```
 
+### Install script
+
+Linux / macOS:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/708u/cctidy/main/scripts/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/708u/cctidy/main/scripts/install.ps1 | iex
+```
+
 ### Go
 
 ```bash

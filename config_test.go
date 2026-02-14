@@ -56,7 +56,6 @@ exclude_paths = [
 ]
 
 [sweep.mcp]
-enabled = true
 exclude_servers = ["slack", "github"]
 `
 		os.WriteFile(path, []byte(content), 0o644)
@@ -76,9 +75,6 @@ exclude_servers = ["slack", "github"]
 		}
 		if len(cfg.Sweep.Bash.ExcludePaths) != 2 {
 			t.Errorf("ExcludePaths len = %d, want 2", len(cfg.Sweep.Bash.ExcludePaths))
-		}
-		if !cfg.Sweep.MCP.Enabled {
-			t.Error("MCP Enabled should be true")
 		}
 		if len(cfg.Sweep.MCP.ExcludeServers) != 2 {
 			t.Errorf("ExcludeServers len = %d, want 2", len(cfg.Sweep.MCP.ExcludeServers))
@@ -245,28 +241,6 @@ func TestMergeRawConfigs(t *testing.T) {
 		}
 	})
 
-	t.Run("MCP overlay Enabled overrides base", func(t *testing.T) {
-		t.Parallel()
-		base := rawConfig{}
-		base.Sweep.MCP.Enabled = boolPtr(true)
-		overlay := rawConfig{}
-		overlay.Sweep.MCP.Enabled = boolPtr(false)
-		got := mergeRawConfigs(base, overlay)
-		if got.Sweep.MCP.Enabled == nil || *got.Sweep.MCP.Enabled {
-			t.Error("overlay MCP Enabled=false should win")
-		}
-	})
-
-	t.Run("MCP overlay Enabled nil preserves base", func(t *testing.T) {
-		t.Parallel()
-		base := rawConfig{}
-		base.Sweep.MCP.Enabled = boolPtr(true)
-		got := mergeRawConfigs(base, rawConfig{})
-		if got.Sweep.MCP.Enabled == nil || !*got.Sweep.MCP.Enabled {
-			t.Error("base MCP Enabled=true should be preserved")
-		}
-	})
-
 	t.Run("MCP ExcludeServers union", func(t *testing.T) {
 		t.Parallel()
 		base := rawConfig{}
@@ -360,28 +334,6 @@ func TestMergeConfig(t *testing.T) {
 		want := []string{"/global/path/", filepath.Join("/myproject", "vendor/"), "/abs/path/"}
 		if !slices.Equal(got.Sweep.Bash.ExcludePaths, want) {
 			t.Errorf("paths: got %v, want %v", got.Sweep.Bash.ExcludePaths, want)
-		}
-	})
-
-	t.Run("MCP project Enabled overrides base", func(t *testing.T) {
-		t.Parallel()
-		base := &Config{}
-		base.Sweep.MCP.Enabled = true
-		project := rawConfig{}
-		project.Sweep.MCP.Enabled = boolPtr(false)
-		got := MergeConfig(base, project, "/project")
-		if got.Sweep.MCP.Enabled {
-			t.Error("project MCP Enabled=false should override base")
-		}
-	})
-
-	t.Run("MCP project Enabled nil preserves base", func(t *testing.T) {
-		t.Parallel()
-		base := &Config{}
-		base.Sweep.MCP.Enabled = true
-		got := MergeConfig(base, rawConfig{}, "/project")
-		if !got.Sweep.MCP.Enabled {
-			t.Error("base MCP Enabled=true should be preserved")
 		}
 	})
 

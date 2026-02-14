@@ -273,8 +273,7 @@ type sweepConfig struct {
 	baseDir      string
 	bashSweep    bool
 	bashSweepCfg BashSweepConfig
-	mcpSweep     bool
-	mcpSweepCfg  MCPSweepConfig
+	mcpSweepCfg  *MCPSweepConfig
 	mcpServers   MCPServerSet
 }
 
@@ -300,8 +299,7 @@ func WithBashSweep(cfg BashSweepConfig) SweepOption {
 // whose server is no longer present in the known server set.
 func WithMCPSweep(cfg MCPSweepConfig, servers MCPServerSet) SweepOption {
 	return func(c *sweepConfig) {
-		c.mcpSweep = true
-		c.mcpSweepCfg = cfg
+		c.mcpSweepCfg = &cfg
 		c.mcpServers = servers
 	}
 }
@@ -333,7 +331,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 	}
 
 	var mcpSweeper *MCPToolSweeper
-	if cfg.mcpSweep {
+	if cfg.mcpSweepCfg != nil {
 		mcpSweeper = NewMCPToolSweeper(
 			cfg.mcpServers,
 			NewMCPExcluder(cfg.mcpSweepCfg.ExcludeServers),

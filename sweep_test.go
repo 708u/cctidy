@@ -1003,27 +1003,6 @@ func TestSweepPermissions(t *testing.T) {
 		}
 	})
 
-	t.Run("MCP sweep disabled keeps all MCP entries", func(t *testing.T) {
-		t.Parallel()
-		obj := map[string]any{
-			"permissions": map[string]any{
-				"allow": []any{
-					"mcp__jira__create_issue",
-					"mcp__sentry__get_alert",
-				},
-			},
-		}
-		// No WithMCPSweep option
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "").Sweep(t.Context(), obj)
-		allow := obj["permissions"].(map[string]any)["allow"].([]any)
-		if len(allow) != 2 {
-			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
-		}
-		if result.SweptAllow != 0 {
-			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
-		}
-	})
-
 	t.Run("MCP in ask category swept", func(t *testing.T) {
 		t.Parallel()
 		servers := MCPServerSet{"slack": true}

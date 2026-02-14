@@ -28,9 +28,6 @@ type SweepToolConfig struct {
 
 // MCPSweepConfig controls MCP tool permission entry sweeping.
 type MCPSweepConfig struct {
-	// Enabled turns on MCP sweep when true.
-	Enabled bool `toml:"enabled"`
-
 	// ExcludeServers lists MCP server names to exclude from sweeping.
 	ExcludeServers []string `toml:"exclude_servers"`
 }
@@ -60,7 +57,6 @@ type rawBashSweepConfig struct {
 }
 
 type rawMCPSweepConfig struct {
-	Enabled        *bool    `toml:"enabled"`
 	ExcludeServers []string `toml:"exclude_servers"`
 }
 
@@ -110,9 +106,6 @@ func rawToConfig(raw rawConfig) *Config {
 	cfg.Sweep.Bash.ExcludeCommands = raw.Sweep.Bash.ExcludeCommands
 	cfg.Sweep.Bash.ExcludePaths = raw.Sweep.Bash.ExcludePaths
 
-	if raw.Sweep.MCP.Enabled != nil {
-		cfg.Sweep.MCP.Enabled = *raw.Sweep.MCP.Enabled
-	}
 	cfg.Sweep.MCP.ExcludeServers = raw.Sweep.MCP.ExcludeServers
 	return cfg
 }
@@ -151,12 +144,6 @@ func mergeRawConfigs(base, overlay rawConfig) rawConfig {
 	merged.Sweep.Bash.ExcludePaths = unionStrings(
 		base.Sweep.Bash.ExcludePaths, overlay.Sweep.Bash.ExcludePaths)
 
-	// MCP: Enabled: overlay wins if explicitly set
-	if overlay.Sweep.MCP.Enabled != nil {
-		merged.Sweep.MCP.Enabled = overlay.Sweep.MCP.Enabled
-	} else {
-		merged.Sweep.MCP.Enabled = base.Sweep.MCP.Enabled
-	}
 	merged.Sweep.MCP.ExcludeServers = unionStrings(
 		base.Sweep.MCP.ExcludeServers, overlay.Sweep.MCP.ExcludeServers)
 
@@ -232,12 +219,6 @@ func MergeConfig(base *Config, project rawConfig, projectRoot string) *Config {
 	merged.Sweep.Bash.ExcludePaths = unionStrings(
 		base.Sweep.Bash.ExcludePaths, resolvedPaths)
 
-	// MCP: Enabled: project wins if explicitly set
-	if project.Sweep.MCP.Enabled != nil {
-		merged.Sweep.MCP.Enabled = *project.Sweep.MCP.Enabled
-	} else {
-		merged.Sweep.MCP.Enabled = base.Sweep.MCP.Enabled
-	}
 	merged.Sweep.MCP.ExcludeServers = unionStrings(
 		base.Sweep.MCP.ExcludeServers, project.Sweep.MCP.ExcludeServers)
 

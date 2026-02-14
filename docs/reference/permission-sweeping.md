@@ -14,12 +14,13 @@ silently re-enable a previously blocked action.
 | Edit  | enabled  |
 | Write | enabled  |
 | Bash  | disabled |
-| MCP   | disabled |
+| MCP   | enabled  |
 
 Bash sweeping requires `--sweep-bash` flag or
-`enabled = true` in the config file. MCP sweeping
-requires `--sweep-mcp` flag or `enabled = true` in the
-config file. See [CLI Reference](cli.md#configuration-file)
+`enabled = true` in the config file. MCP sweeping is
+always active because it is deterministic (based on
+server registration, not filesystem state).
+See [CLI Reference](cli.md#configuration-file)
 for config details.
 
 Entries for tools not listed above (e.g. `WebFetch`,
@@ -128,7 +129,7 @@ ensure directory boundary matching.
 
 ## MCP
 
-Enabled with `--sweep-mcp`.
+Always active.
 
 MCP entries use the `mcp__<server>__<tool>` naming
 convention. The sweeper checks whether the server is

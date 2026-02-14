@@ -15,7 +15,6 @@ cctidy [flags]
 | `--dry-run`           |       | false   | Show changes without writing      |
 | `--check`             |       | false   | Exit with 1 if any file is dirty  |
 | `--sweep-bash`        |       | false   | Include Bash entries in sweeping  |
-| `--sweep-mcp`         |       | false   | Include MCP entries in sweeping   |
 | `--config`            |       | (auto)  | Path to config file               |
 | `--verbose`           | `-v`  | false   | Show formatting details           |
 | `--version`           |       |         | Print version                     |
@@ -98,15 +97,11 @@ Merged result: `enabled = true`,
 
 #### `[sweep.mcp]`
 
-| Key               | Type     | Default | Description              |
-| ----------------- | -------- | ------- | ------------------------ |
-| `enabled`         | bool     | (unset) | Enable MCP sweep         |
-| `exclude_servers` | string[] | []      | Server names to keep     |
+| Key               | Type     | Default | Description          |
+| ----------------- | -------- | ------- | -------------------- |
+| `exclude_servers` | string[] | []      | Server names to keep |
 
-### Priority: CLI vs Config
-
-The same priority logic applies to both `--sweep-bash`
-and `--sweep-mcp`:
+### Priority: CLI vs Config (`--sweep-bash`)
 
 | config `enabled` | CLI flag  | Result    |
 | ---------------- | --------- | --------- |
@@ -117,6 +112,10 @@ and `--sweep-mcp`:
 
 The CLI flag always wins. Exclude patterns are
 config-only (no CLI flags).
+
+MCP sweep is always active and does not require a
+CLI flag or config `enabled` setting. Use
+`exclude_servers` to opt out specific servers.
 
 ## Target Files
 

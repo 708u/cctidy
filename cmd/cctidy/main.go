@@ -198,6 +198,14 @@ func (c *CLI) bashSweepConfig() (cctidy.BashSweepConfig, bool) {
 	return cctidy.BashSweepConfig{}, false
 }
 
+// mcpSweepConfig returns the MCPSweepConfig for the current CLI.
+func (c *CLI) mcpSweepConfig() cctidy.MCPSweepConfig {
+	if c.cfg == nil {
+		return cctidy.MCPSweepConfig{}
+	}
+	return c.cfg.Sweep.MCP
+}
+
 func (c *CLI) resolveTargets(home string) []targetFile {
 	if c.Target == "" {
 		return c.defaultTargets(home)
@@ -207,6 +215,8 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 	if bashCfg, ok := c.bashSweepConfig(); ok {
 		opts = append(opts, cctidy.WithBashSweep(bashCfg))
 	}
+	servers := c.loadMCPServers(home)
+	opts = append(opts, cctidy.WithMCPSweep(c.mcpSweepConfig(), servers))
 	sweeper := cctidy.NewPermissionSweeper(c.checker, home, opts...)
 	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
 	if filepath.Base(c.Target) == ".claude.json" {
@@ -230,6 +240,21 @@ func findProjectRoot(dir string) string {
 	}
 }
 
+// loadMCPServers loads known MCP server names from .mcp.json and
+// ~/.claude.json. Errors are printed as warnings; an empty set is
+// returned on failure so sweep can still proceed conservatively.
+func (c *CLI) loadMCPServers(home string) cctidy.MCPServerSet {
+	servers, err := cctidy.LoadMCPServers(
+		filepath.Join(c.projectRoot, ".mcp.json"),
+		filepath.Join(home, ".claude.json"),
+	)
+	if err != nil {
+		fmt.Fprintf(c.w, "cctidy: warning: loading MCP servers: %v\n", err)
+		return cctidy.MCPServerSet{}
+	}
+	return servers
+}
+
 func (c *CLI) defaultTargets(home string) []targetFile {
 	projectRoot := c.projectRoot
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
@@ -240,6 +265,10 @@ func (c *CLI) defaultTargets(home string) []targetFile {
 		globalOpts = append(globalOpts, bashOpt)
 		projectOpts = append(projectOpts, bashOpt)
 	}
+	servers := c.loadMCPServers(home)
+	mcpOpt := cctidy.WithMCPSweep(c.mcpSweepConfig(), servers)
+	globalOpts = append(globalOpts, mcpOpt)
+	projectOpts = append(projectOpts, mcpOpt)
 	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, globalOpts...))
 	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, projectOpts...))
 	return []targetFile{

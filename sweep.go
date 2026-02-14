@@ -23,8 +23,16 @@ var relPathRe = regexp.MustCompile(`(?:^|\s|=)(\.\./[A-Za-z0-9_./-]+|\./[A-Za-z0
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
 // extractToolEntry returns the tool name and specifier from a
-// permission entry. Returns ("", "") if the entry has no specifier.
+// permission entry.
+//
+// MCP entries (mcp__*) are routed to ToolMCP with the raw entry
+// as specifier, leaving parsing to the sweeper.
+// Standard entries use the Tool(specifier) syntax.
+// Returns ("", "") for unrecognized entries.
 func extractToolEntry(entry string) (toolName, specifier string) {
+	if strings.HasPrefix(entry, "mcp__") {
+		return string(ToolMCP), entry
+	}
 	m := toolEntryRe.FindStringSubmatch(entry)
 	if m == nil {
 		return "", ""
@@ -52,6 +60,7 @@ const (
 	ToolEdit  ToolName = "Edit"
 	ToolWrite ToolName = "Write"
 	ToolBash  ToolName = "Bash"
+	ToolMCP   ToolName = "mcp"
 )
 
 // ReadEditToolSweeper sweeps Read/Edit/Write permission entries
@@ -272,6 +281,8 @@ type sweepConfig struct {
 	baseDir      string
 	bashSweep    bool
 	bashSweepCfg BashSweepConfig
+	mcpSweepCfg  *MCPSweepConfig
+	mcpServers   MCPServerSet
 }
 
 // WithBaseDir sets the base directory for resolving relative path specifiers.
@@ -289,6 +300,15 @@ func WithBashSweep(cfg BashSweepConfig) SweepOption {
 	return func(c *sweepConfig) {
 		c.bashSweep = true
 		c.bashSweepCfg = cfg
+	}
+}
+
+// WithMCPSweep enables sweeping of MCP tool permission entries
+// whose server is no longer present in the known server set.
+func WithMCPSweep(cfg MCPSweepConfig, servers MCPServerSet) SweepOption {
+	return func(c *sweepConfig) {
+		c.mcpSweepCfg = &cfg
+		c.mcpServers = servers
 	}
 }
 
@@ -316,6 +336,13 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 			baseDir:  cfg.baseDir,
 			excluder: NewBashExcluder(cfg.bashSweepCfg),
 		}
+	}
+
+	if cfg.mcpSweepCfg != nil {
+		tools[ToolMCP] = NewMCPToolSweeper(
+			cfg.mcpServers,
+			NewMCPExcluder(cfg.mcpSweepCfg.ExcludeServers),
+		)
 	}
 
 	return &PermissionSweeper{tools: tools}

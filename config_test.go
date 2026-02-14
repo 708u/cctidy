@@ -54,6 +54,9 @@ exclude_paths = [
   "/opt/myapp/",
   "/var/log/myapp/",
 ]
+
+[sweep.mcp]
+exclude_servers = ["slack", "github"]
 `
 		os.WriteFile(path, []byte(content), 0o644)
 
@@ -72,6 +75,9 @@ exclude_paths = [
 		}
 		if len(cfg.Sweep.Bash.ExcludePaths) != 2 {
 			t.Errorf("ExcludePaths len = %d, want 2", len(cfg.Sweep.Bash.ExcludePaths))
+		}
+		if len(cfg.Sweep.MCP.ExcludeServers) != 2 {
+			t.Errorf("ExcludeServers len = %d, want 2", len(cfg.Sweep.MCP.ExcludeServers))
 		}
 	})
 
@@ -234,6 +240,19 @@ func TestMergeRawConfigs(t *testing.T) {
 			t.Errorf("got %v, want %v", got.Sweep.Bash.ExcludeCommands, want)
 		}
 	})
+
+	t.Run("MCP ExcludeServers union", func(t *testing.T) {
+		t.Parallel()
+		base := rawConfig{}
+		base.Sweep.MCP.ExcludeServers = []string{"slack", "github"}
+		overlay := rawConfig{}
+		overlay.Sweep.MCP.ExcludeServers = []string{"github", "jira"}
+		got := mergeRawConfigs(base, overlay)
+		want := []string{"slack", "github", "jira"}
+		if !slices.Equal(got.Sweep.MCP.ExcludeServers, want) {
+			t.Errorf("got %v, want %v", got.Sweep.MCP.ExcludeServers, want)
+		}
+	})
 }
 
 func TestMergeConfig(t *testing.T) {
@@ -315,6 +334,19 @@ func TestMergeConfig(t *testing.T) {
 		want := []string{"/global/path/", filepath.Join("/myproject", "vendor/"), "/abs/path/"}
 		if !slices.Equal(got.Sweep.Bash.ExcludePaths, want) {
 			t.Errorf("paths: got %v, want %v", got.Sweep.Bash.ExcludePaths, want)
+		}
+	})
+
+	t.Run("MCP ExcludeServers union with dedup", func(t *testing.T) {
+		t.Parallel()
+		base := &Config{}
+		base.Sweep.MCP.ExcludeServers = []string{"slack", "github"}
+		project := rawConfig{}
+		project.Sweep.MCP.ExcludeServers = []string{"github", "jira"}
+		got := MergeConfig(base, project, "/project")
+		want := []string{"slack", "github", "jira"}
+		if !slices.Equal(got.Sweep.MCP.ExcludeServers, want) {
+			t.Errorf("servers: got %v, want %v", got.Sweep.MCP.ExcludeServers, want)
 		}
 	})
 }

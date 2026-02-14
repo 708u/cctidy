@@ -19,6 +19,17 @@ type SweepToolConfig struct {
 	// Bash configures sweeping for Bash permission entries.
 	// "bash" corresponds to the Bash tool name in Claude Code permissions.
 	Bash BashSweepConfig `toml:"bash"`
+
+	// MCP configures sweeping for MCP tool permission entries.
+	// Entries referencing servers no longer present in .mcp.json
+	// or ~/.claude.json are swept.
+	MCP MCPSweepConfig `toml:"mcp"`
+}
+
+// MCPSweepConfig controls MCP tool permission entry sweeping.
+type MCPSweepConfig struct {
+	// ExcludeServers lists MCP server names to exclude from sweeping.
+	ExcludeServers []string `toml:"exclude_servers"`
 }
 
 // BashSweepConfig controls Bash permission entry sweeping.
@@ -45,8 +56,13 @@ type rawBashSweepConfig struct {
 	ExcludePaths    []string `toml:"exclude_paths"`
 }
 
+type rawMCPSweepConfig struct {
+	ExcludeServers []string `toml:"exclude_servers"`
+}
+
 type rawSweepToolConfig struct {
 	Bash rawBashSweepConfig `toml:"bash"`
+	MCP  rawMCPSweepConfig  `toml:"mcp"`
 }
 
 type rawConfig struct {
@@ -89,6 +105,8 @@ func rawToConfig(raw rawConfig) *Config {
 	cfg.Sweep.Bash.ExcludeEntries = raw.Sweep.Bash.ExcludeEntries
 	cfg.Sweep.Bash.ExcludeCommands = raw.Sweep.Bash.ExcludeCommands
 	cfg.Sweep.Bash.ExcludePaths = raw.Sweep.Bash.ExcludePaths
+
+	cfg.Sweep.MCP.ExcludeServers = raw.Sweep.MCP.ExcludeServers
 	return cfg
 }
 
@@ -125,6 +143,9 @@ func mergeRawConfigs(base, overlay rawConfig) rawConfig {
 		base.Sweep.Bash.ExcludeCommands, overlay.Sweep.Bash.ExcludeCommands)
 	merged.Sweep.Bash.ExcludePaths = unionStrings(
 		base.Sweep.Bash.ExcludePaths, overlay.Sweep.Bash.ExcludePaths)
+
+	merged.Sweep.MCP.ExcludeServers = unionStrings(
+		base.Sweep.MCP.ExcludeServers, overlay.Sweep.MCP.ExcludeServers)
 
 	return merged
 }
@@ -197,6 +218,9 @@ func MergeConfig(base *Config, project rawConfig, projectRoot string) *Config {
 	}
 	merged.Sweep.Bash.ExcludePaths = unionStrings(
 		base.Sweep.Bash.ExcludePaths, resolvedPaths)
+
+	merged.Sweep.MCP.ExcludeServers = unionStrings(
+		base.Sweep.MCP.ExcludeServers, project.Sweep.MCP.ExcludeServers)
 
 	return merged
 }

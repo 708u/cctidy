@@ -389,17 +389,15 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 func (p *PermissionSweeper) shouldSweep(ctx context.Context, entry string, result *SweepResult) bool {
 	toolName, specifier := extractToolEntry(entry)
 
-	// MCP dispatch: bare entry (no parens) or entry with parens.
-	// MCP tool name is passed as specifier to the ToolMCP sweeper.
-	mcpName := ""
-	if toolName != "" && strings.HasPrefix(toolName, "mcp__") {
-		mcpName = toolName
-	} else if toolName == "" && strings.HasPrefix(entry, "mcp__") {
-		mcpName = entry
+	// MCP dispatch: resolve bare or parenthesized mcp__ entries
+	// to ToolMCP with the MCP tool name as specifier.
+	name := toolName
+	if name == "" {
+		name = entry
 	}
-	if mcpName != "" {
+	if strings.HasPrefix(name, "mcp__") {
 		toolName = string(ToolMCP)
-		specifier = mcpName
+		specifier = name
 	}
 
 	if toolName == "" {

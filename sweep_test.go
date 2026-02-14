@@ -35,10 +35,16 @@ func TestExtractToolEntry(t *testing.T) {
 			wantSpecifier: "/some/path",
 		},
 		{
-			name:          "mcp tool with underscores",
+			name:          "mcp tool routed to ToolMCP",
 			entry:         "mcp__github__search_code(query)",
-			wantTool:      "mcp__github__search_code",
-			wantSpecifier: "query",
+			wantTool:      "mcp",
+			wantSpecifier: "mcp__github__search_code(query)",
+		},
+		{
+			name:          "bare mcp entry routed to ToolMCP",
+			entry:         "mcp__slack__post_message",
+			wantTool:      "mcp",
+			wantSpecifier: "mcp__slack__post_message",
 		},
 		{
 			name:     "bare tool name without parens",

@@ -23,8 +23,16 @@ var relPathRe = regexp.MustCompile(`(?:^|\s|=)(\.\./[A-Za-z0-9_./-]+|\./[A-Za-z0
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
 // extractToolEntry returns the tool name and specifier from a
-// permission entry. Returns ("", "") if the entry has no specifier.
+// permission entry.
+//
+// MCP entries (mcp__*) are routed to ToolMCP with the raw entry
+// as specifier, leaving parsing to the sweeper.
+// Standard entries use the Tool(specifier) syntax.
+// Returns ("", "") for unrecognized entries.
 func extractToolEntry(entry string) (toolName, specifier string) {
+	if strings.HasPrefix(entry, "mcp__") {
+		return string(ToolMCP), entry
+	}
 	m := toolEntryRe.FindStringSubmatch(entry)
 	if m == nil {
 		return "", ""
@@ -388,18 +396,6 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 
 func (p *PermissionSweeper) shouldSweep(ctx context.Context, entry string, result *SweepResult) bool {
 	toolName, specifier := extractToolEntry(entry)
-
-	// MCP dispatch: resolve bare or parenthesized mcp__ entries
-	// to ToolMCP with the MCP tool name as specifier.
-	name := toolName
-	if name == "" {
-		name = entry
-	}
-	if strings.HasPrefix(name, "mcp__") {
-		toolName = string(ToolMCP)
-		specifier = name
-	}
-
 	if toolName == "" {
 		return false
 	}

@@ -42,10 +42,11 @@ of project-relative path resolution for permission
 sweeping.
 
 > [!NOTE]
-> Bash tool sweeping is opt-in via `--sweep-bash`.
-> Bash entries may contain paths that do not yet exist
-> (e.g. output paths for `mkdir`, `touch`), so automatic
-> sweeping could remove intentional permissions.
+> Bash tool sweeping is opt-in via `--sweep-bash` flag
+> or `enabled = true` in config. Bash entries may contain
+> paths that do not yet exist (e.g. output paths for
+> `mkdir`, `touch`), so automatic sweeping could remove
+> intentional permissions.
 
 ## Installation
 
@@ -92,9 +93,45 @@ cctidy --sweep-bash
 | `--backup`            |       | Create backup before writing      |
 | `--dry-run`           |       | Show changes without writing      |
 | `--check`             |       | Exit with 1 if any file is dirty  |
-| `--sweep-bash` |       | Include Bash entries in sweeping  |
+| `--sweep-bash`        |       | Include Bash entries in sweeping  |
 | `--verbose`           | `-v`  | Show formatting details           |
 | `--version`           |       | Print version                     |
+
+Details:
+[docs/reference/cli.md](docs/reference/cli.md)
+
+## Configuration
+
+cctidy supports layered TOML configuration. Settings
+are merged in the following order (later wins):
+
+1. Global: `~/.config/cctidy/config.toml`
+2. Project shared: `.claude/cctidy.toml`
+3. Project local: `.claude/cctidy.local.toml`
+4. CLI flags (`--sweep-bash`)
+
+Project config files are searched from the nearest
+`.claude/` directory, walking up from the current
+working directory.
+
+### Example
+
+```toml
+# ~/.config/cctidy/config.toml or .claude/cctidy.toml
+[sweep.bash]
+enabled = true
+exclude_commands = ["mkdir", "touch"]
+exclude_paths = ["vendor/"]
+```
+
+### Merge Strategy
+
+- **Scalars** (`enabled`): last-set-wins. Unset values
+  do not override lower layers.
+- **Arrays** (`exclude_*`): union with deduplication.
+  Each layer adds entries additively.
+- **Relative paths** in project config `exclude_paths`
+  are resolved against the project root.
 
 Details:
 [docs/reference/cli.md](docs/reference/cli.md)

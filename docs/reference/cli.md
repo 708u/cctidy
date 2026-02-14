@@ -14,42 +14,74 @@ cctidy [flags]
 | `--backup`            |       | false   | Create backup before writing      |
 | `--dry-run`           |       | false   | Show changes without writing      |
 | `--check`             |       | false   | Exit with 1 if any file is dirty  |
-| `--sweep-bash` |       | false   | Include Bash entries in sweeping  |
+| `--sweep-bash`        |       | false   | Include Bash entries in sweeping  |
 | `--config`            |       | (auto)  | Path to config file               |
 | `--verbose`           | `-v`  | false   | Show formatting details           |
 | `--version`           |       |         | Print version                     |
 
 ## Configuration File
 
-cctidy reads a TOML configuration file for settings
-that are too verbose for CLI flags (e.g. exclude patterns).
+cctidy reads TOML configuration files for settings
+that are too verbose for CLI flags (e.g. exclude
+patterns). Settings are merged in layers, with later
+layers overriding earlier ones.
 
-### Search Order
+### Config Layers
 
-1. `--config PATH` (explicit)
-2. `~/.config/cctidy/config.toml` (default)
+| Priority | File                            | Scope   |
+| -------- | ------------------------------- | ------- |
+| 1 (low)  | `~/.config/cctidy/config.toml`  | Global  |
+| 2        | `.claude/cctidy.toml`           | Project |
+| 3        | `.claude/cctidy.local.toml`     | Local   |
+| 4 (high) | CLI flags (`--sweep-bash`)      | Runtime |
 
-If no config file is found, cctidy uses default settings.
+The global config path can be overridden with
+`--config PATH`.
+
+Project config files are located in the `.claude/`
+directory of the project root. The project root is
+found by walking up from the current working directory
+to the first directory containing a `.claude/` folder.
+
+If no config files are found, cctidy uses defaults.
+
+### Merge Strategy
+
+- **Scalars** (`enabled`): last-set-wins. Unset values
+  do not override lower layers.
+- **Arrays** (`exclude_*`): union with deduplication.
+  Each layer adds entries; no layer can remove entries
+  from a lower layer.
+- **Relative paths** in project config `exclude_paths`
+  are resolved against the project root.
 
 ### Example
+
+Global config (`~/.config/cctidy/config.toml`):
+
+```toml
+[sweep.bash]
+exclude_commands = ["mkdir", "touch"]
+```
+
+Project shared config (`.claude/cctidy.toml`):
 
 ```toml
 [sweep.bash]
 enabled = true
-exclude_entries = [
-  "mkdir -p /opt/myapp/logs",
-]
-exclude_commands = [
-  "mkdir",
-  "touch",
-  "ln",
-  "install",
-]
-exclude_paths = [
-  "/opt/myapp/",
-  "/var/log/myapp/",
-]
+exclude_paths = ["vendor/"]
 ```
+
+Project local config (`.claude/cctidy.local.toml`):
+
+```toml
+[sweep.bash]
+exclude_commands = ["ln"]
+```
+
+Merged result: `enabled = true`,
+`exclude_commands = ["mkdir", "touch", "ln"]`,
+`exclude_paths = ["<projectRoot>/vendor/"]`.
 
 ### Config Fields
 
@@ -89,7 +121,10 @@ in order:
 | `.claude/settings.local.json`   | Sweeping, sorting         |
 
 Project-level settings files (`.claude/`) are resolved
-relative to the current working directory.
+relative to the project root. The project root is found
+by walking up from the current working directory to the
+first directory containing a `.claude/` folder. If none
+is found, the current working directory is used.
 
 ### Single Target
 

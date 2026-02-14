@@ -1246,3 +1246,298 @@ func TestSweepDryRun(t *testing.T) {
 		t.Error("file was modified in dry-run mode")
 	}
 }
+
+func TestIntegrationProjectConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("project shared config enables bash sweep", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+		projectDir := filepath.Join(dir, "project")
+
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+		os.WriteFile(filepath.Join(claudeDir, "cctidy.toml"),
+			[]byte("[sweep.bash]\nenabled = true\n"), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, _ := cctidy.LoadConfig("/nonexistent/config.toml")
+		projectCfg, err := cctidy.LoadProjectConfig(projectDir)
+		if err != nil {
+			t.Fatalf("loading project config: %v", err)
+		}
+		merged := cctidy.MergeConfig(cfg, projectCfg, projectDir)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         merged,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+		if strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("bash entry should be swept by project config enabled=true")
+		}
+	})
+
+	t.Run("project local overrides shared", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+		projectDir := filepath.Join(dir, "project")
+
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+		os.WriteFile(filepath.Join(claudeDir, "cctidy.toml"),
+			[]byte("[sweep.bash]\nenabled = true\n"), 0o644)
+		os.WriteFile(filepath.Join(claudeDir, "cctidy.local.toml"),
+			[]byte("[sweep.bash]\nenabled = false\n"), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, _ := cctidy.LoadConfig("/nonexistent/config.toml")
+		projectCfg, err := cctidy.LoadProjectConfig(projectDir)
+		if err != nil {
+			t.Fatalf("loading project config: %v", err)
+		}
+		merged := cctidy.MergeConfig(cfg, projectCfg, projectDir)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         merged,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+		if !strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("bash entry should be kept when local config disables sweep")
+		}
+	})
+
+	t.Run("three layer merge: global + shared + local", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+
+		// Global config: exclude "mkdir"
+		globalCfgDir := filepath.Join(dir, "global-config")
+		os.MkdirAll(globalCfgDir, 0o755)
+		globalCfg := filepath.Join(globalCfgDir, "config.toml")
+		os.WriteFile(globalCfg, []byte(`
+[sweep.bash]
+exclude_commands = ["mkdir"]
+`), 0o644)
+
+		// Project shared config: enable sweep, exclude "touch"
+		claudeDir := filepath.Join(dir, "project", ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+		os.WriteFile(filepath.Join(claudeDir, "cctidy.toml"), []byte(`
+[sweep.bash]
+enabled = true
+exclude_commands = ["touch"]
+`), 0o644)
+
+		// Project local config: exclude "cp"
+		os.WriteFile(filepath.Join(claudeDir, "cctidy.local.toml"), []byte(`
+[sweep.bash]
+exclude_commands = ["cp"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p ` + deadPath + `/logs)",
+      "Bash(touch ` + deadPath + `/.init)",
+      "Bash(cp ` + deadPath + ` /tmp/backup)",
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(globalCfg)
+		if err != nil {
+			t.Fatalf("loading global config: %v", err)
+		}
+		projectCfg, err := cctidy.LoadProjectConfig(filepath.Join(dir, "project"))
+		if err != nil {
+			t.Fatalf("loading project config: %v", err)
+		}
+		merged := cctidy.MergeConfig(cfg, projectCfg, filepath.Join(dir, "project"))
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         merged,
+			projectRoot: filepath.Join(dir, "project"),
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// mkdir excluded by global config
+		if !strings.Contains(got, `"Bash(mkdir -p `+deadPath) {
+			t.Error("mkdir entry should be kept by global exclude_commands")
+		}
+		// touch excluded by project shared config
+		if !strings.Contains(got, `"Bash(touch `+deadPath) {
+			t.Error("touch entry should be kept by project shared exclude_commands")
+		}
+		// cp excluded by project local config
+		if !strings.Contains(got, `"Bash(cp `+deadPath) {
+			t.Error("cp entry should be kept by project local exclude_commands")
+		}
+		// git not excluded, should be swept
+		if strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("git entry with dead path should be swept")
+		}
+	})
+
+	t.Run("project config relative paths resolved correctly", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		// Create a file inside the excluded relative path
+		excludedDir := filepath.Join(projectDir, "vendor", "lib")
+		os.MkdirAll(excludedDir, 0o755)
+
+		// Dead path that would normally be swept
+		deadPath := filepath.Join(excludedDir, "dead-file")
+
+		os.WriteFile(filepath.Join(claudeDir, "cctidy.toml"), []byte(`
+[sweep.bash]
+enabled = true
+exclude_paths = ["vendor/"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(cat ` + deadPath + `)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, _ := cctidy.LoadConfig("/nonexistent/config.toml")
+		projectCfg, err := cctidy.LoadProjectConfig(projectDir)
+		if err != nil {
+			t.Fatalf("loading project config: %v", err)
+		}
+		merged := cctidy.MergeConfig(cfg, projectCfg, projectDir)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         merged,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// Dead path under vendor/ should be kept due to exclude_paths
+		if !strings.Contains(got, `"Bash(cat `+deadPath) {
+			t.Error("entry under excluded relative path should be kept")
+		}
+	})
+
+	t.Run("no project config preserves existing behavior", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		deadPath := filepath.Join(dir, "dead-repo")
+
+		// No .claude/cctidy.toml files
+		claudeDir := filepath.Join(dir, "project", ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, _ := cctidy.LoadConfig("/nonexistent/config.toml")
+		projectCfg, err := cctidy.LoadProjectConfig(filepath.Join(dir, "project"))
+		if err != nil {
+			t.Fatalf("loading project config: %v", err)
+		}
+		merged := cctidy.MergeConfig(cfg, projectCfg, filepath.Join(dir, "project"))
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         merged,
+			projectRoot: filepath.Join(dir, "project"),
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Bash(git -C `+deadPath) {
+			t.Error("bash entry should be kept without project config")
+		}
+	})
+}

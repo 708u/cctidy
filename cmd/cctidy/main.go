@@ -28,9 +28,10 @@ type CLI struct {
 	Verbose   bool             `help:"Show formatting details." short:"v"`
 	Version   kong.VersionFlag `help:"Print version."`
 
-	checker cctidy.PathChecker
-	cfg     *cctidy.Config
-	w       io.Writer
+	checker     cctidy.PathChecker
+	cfg         *cctidy.Config
+	projectRoot string
+	w           io.Writer
 }
 
 type Formatter interface {
@@ -82,7 +83,16 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
 		return 1
 	}
-	cli.cfg = cfg
+
+	cwd, _ := os.Getwd()
+	cli.projectRoot = findProjectRoot(cwd)
+
+	projectCfg, err := cctidy.LoadProjectConfig(cli.projectRoot)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cctidy: %v\n", err)
+		return 1
+	}
+	cli.cfg = cctidy.MergeConfig(cfg, projectCfg, cli.projectRoot)
 
 	if cli.Check && (cli.Backup || cli.DryRun) {
 		fmt.Fprintf(os.Stderr, "cctidy: --check cannot be combined with --backup or --dry-run\n")
@@ -221,8 +231,7 @@ func findProjectRoot(dir string) string {
 }
 
 func (c *CLI) defaultTargets(home string) []targetFile {
-	cwd, _ := os.Getwd()
-	projectRoot := findProjectRoot(cwd)
+	projectRoot := c.projectRoot
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
 	var globalOpts []cctidy.SweepOption
 	projectOpts := []cctidy.SweepOption{cctidy.WithBaseDir(projectRoot)}

@@ -24,6 +24,7 @@ type CLI struct {
 	DryRun    bool             `help:"Show changes without writing." name:"dry-run"`
 	Check     bool             `help:"Exit with 1 if any file needs formatting."`
 	SweepBash bool             `help:"Sweep Bash tool permission entries." name:"sweep-bash"`
+	SweepMCP  bool             `help:"Sweep MCP tool permission entries." name:"sweep-mcp"`
 	Config    string           `help:"Path to config file." name:"config"`
 	Verbose   bool             `help:"Show formatting details." short:"v"`
 	Version   kong.VersionFlag `help:"Print version."`
@@ -198,6 +199,21 @@ func (c *CLI) bashSweepConfig() (cctidy.BashSweepConfig, bool) {
 	return cctidy.BashSweepConfig{}, false
 }
 
+// mcpSweepConfig returns the MCPSweepConfig and true if MCP
+// sweeping should be active. CLI flag takes precedence over config.
+func (c *CLI) mcpSweepConfig() (cctidy.MCPSweepConfig, bool) {
+	if c.cfg == nil {
+		return cctidy.MCPSweepConfig{}, c.SweepMCP
+	}
+	if c.SweepMCP {
+		return c.cfg.Sweep.MCP, true
+	}
+	if c.cfg.Sweep.MCP.Enabled {
+		return c.cfg.Sweep.MCP, true
+	}
+	return cctidy.MCPSweepConfig{}, false
+}
+
 func (c *CLI) resolveTargets(home string) []targetFile {
 	if c.Target == "" {
 		return c.defaultTargets(home)
@@ -206,6 +222,10 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 	opts := []cctidy.SweepOption{cctidy.WithBaseDir(baseDir)}
 	if bashCfg, ok := c.bashSweepConfig(); ok {
 		opts = append(opts, cctidy.WithBashSweep(bashCfg))
+	}
+	if mcpCfg, ok := c.mcpSweepConfig(); ok {
+		servers := c.loadMCPServers(home)
+		opts = append(opts, cctidy.WithMCPSweep(mcpCfg, servers))
 	}
 	sweeper := cctidy.NewPermissionSweeper(c.checker, home, opts...)
 	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
@@ -230,6 +250,21 @@ func findProjectRoot(dir string) string {
 	}
 }
 
+// loadMCPServers loads known MCP server names from .mcp.json and
+// ~/.claude.json. Errors are printed as warnings; an empty set is
+// returned on failure so sweep can still proceed conservatively.
+func (c *CLI) loadMCPServers(home string) cctidy.MCPServerSet {
+	servers, err := cctidy.LoadMCPServers(
+		filepath.Join(c.projectRoot, ".mcp.json"),
+		filepath.Join(home, ".claude.json"),
+	)
+	if err != nil {
+		fmt.Fprintf(c.w, "cctidy: warning: loading MCP servers: %v\n", err)
+		return cctidy.MCPServerSet{}
+	}
+	return servers
+}
+
 func (c *CLI) defaultTargets(home string) []targetFile {
 	projectRoot := c.projectRoot
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
@@ -239,6 +274,12 @@ func (c *CLI) defaultTargets(home string) []targetFile {
 		bashOpt := cctidy.WithBashSweep(bashCfg)
 		globalOpts = append(globalOpts, bashOpt)
 		projectOpts = append(projectOpts, bashOpt)
+	}
+	if mcpCfg, ok := c.mcpSweepConfig(); ok {
+		servers := c.loadMCPServers(home)
+		mcpOpt := cctidy.WithMCPSweep(mcpCfg, servers)
+		globalOpts = append(globalOpts, mcpOpt)
+		projectOpts = append(projectOpts, mcpOpt)
 	}
 	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, globalOpts...))
 	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, projectOpts...))

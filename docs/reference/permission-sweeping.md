@@ -14,11 +14,13 @@ silently re-enable a previously blocked action.
 | Edit  | enabled  |
 | Write | enabled  |
 | Bash  | disabled |
+| MCP   | disabled |
 
 Bash sweeping requires `--sweep-bash` flag or
-`enabled = true` in the config file. See
-[CLI Reference](cli.md#configuration-file) for config
-details.
+`enabled = true` in the config file. MCP sweeping
+requires `--sweep-mcp` flag or `enabled = true` in the
+config file. See [CLI Reference](cli.md#configuration-file)
+for config details.
 
 Entries for tools not listed above (e.g. `WebFetch`,
 `Grep`) are kept unchanged.
@@ -123,3 +125,52 @@ The first match wins.
 
 For `exclude_paths`, trailing `/` is recommended to
 ensure directory boundary matching.
+
+## MCP
+
+Enabled with `--sweep-mcp`.
+
+MCP entries use the `mcp__<server>__<tool>` naming
+convention. The sweeper checks whether the server is
+still registered in `.mcp.json` or `~/.claude.json`.
+
+### Server Discovery
+
+Known servers are collected from two sources:
+
+| Source            | Key path                           |
+| ----------------- | ---------------------------------- |
+| `.mcp.json`       | `mcpServers.<name>`                |
+| `~/.claude.json`  | `mcpServers.<name>`                |
+| `~/.claude.json`  | `projects.<path>.mcpServers.<name>`|
+
+The union of all discovered server names forms the
+known set. Missing files are silently ignored.
+
+### Sweep Logic
+
+An entry is swept when **both** of these are true:
+
+1. The tool name starts with `mcp__` (but not
+   `mcp__plugin_`)
+2. The extracted server name is not in the known set
+
+Marketplace plugin entries (`mcp__plugin_*`) are always
+kept because they are managed by the plugin system, not
+by `.mcp.json`.
+
+### Bare Entries
+
+Both forms are supported:
+
+- `mcp__slack__post_message` (with tool name)
+- `mcp__slack` (bare server reference)
+
+### Exclude Patterns
+
+| Type               | Match method        | Example  |
+| ------------------ | ------------------- | -------- |
+| `exclude_servers`  | Exact server name   | `slack`  |
+
+Excluded servers are always kept regardless of whether
+they appear in the known set.

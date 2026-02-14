@@ -262,7 +262,8 @@ type sweepCategory struct {
 //
 // Ref: https://code.claude.com/docs/en/permissions#permission-rule-syntax
 type PermissionSweeper struct {
-	tools map[ToolName]ToolSweeper
+	tools      map[ToolName]ToolSweeper
+	mcpSweeper *MCPToolSweeper // nil when MCP sweep is disabled
 }
 
 // SweepOption configures a PermissionSweeper.
@@ -272,6 +273,9 @@ type sweepConfig struct {
 	baseDir      string
 	bashSweep    bool
 	bashSweepCfg BashSweepConfig
+	mcpSweep     bool
+	mcpSweepCfg  MCPSweepConfig
+	mcpServers   MCPServerSet
 }
 
 // WithBaseDir sets the base directory for resolving relative path specifiers.
@@ -289,6 +293,16 @@ func WithBashSweep(cfg BashSweepConfig) SweepOption {
 	return func(c *sweepConfig) {
 		c.bashSweep = true
 		c.bashSweepCfg = cfg
+	}
+}
+
+// WithMCPSweep enables sweeping of MCP tool permission entries
+// whose server is no longer present in the known server set.
+func WithMCPSweep(cfg MCPSweepConfig, servers MCPServerSet) SweepOption {
+	return func(c *sweepConfig) {
+		c.mcpSweep = true
+		c.mcpSweepCfg = cfg
+		c.mcpServers = servers
 	}
 }
 
@@ -318,7 +332,15 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 		}
 	}
 
-	return &PermissionSweeper{tools: tools}
+	var mcpSweeper *MCPToolSweeper
+	if cfg.mcpSweep {
+		mcpSweeper = NewMCPToolSweeper(
+			cfg.mcpServers,
+			NewMCPExcluder(cfg.mcpSweepCfg.ExcludeServers),
+		)
+	}
+
+	return &PermissionSweeper{tools: tools, mcpSweeper: mcpSweeper}
 }
 
 // Sweep removes stale allow/ask permission entries from obj.
@@ -369,6 +391,27 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 
 func (p *PermissionSweeper) shouldSweep(ctx context.Context, entry string, result *SweepResult) bool {
 	toolName, specifier := extractToolEntry(entry)
+
+	// MCP dispatch: bare entry (no parens) or entry with parens
+	mcpName := ""
+	if toolName != "" && strings.HasPrefix(toolName, "mcp__") {
+		mcpName = toolName
+	} else if toolName == "" && strings.HasPrefix(entry, "mcp__") {
+		mcpName = entry
+	}
+	if mcpName != "" {
+		if p.mcpSweeper == nil {
+			return false
+		}
+		r := p.mcpSweeper.ShouldSweepTool(mcpName)
+		if r.Warn != "" {
+			result.Warns = append(result.Warns, entry)
+			return false
+		}
+		return r.Sweep
+	}
+
+	// Existing tools map dispatch
 	if toolName == "" {
 		return false
 	}

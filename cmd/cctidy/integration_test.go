@@ -1541,3 +1541,276 @@ exclude_paths = ["vendor/"]
 		}
 	})
 }
+
+func TestIntegrationMCPSweep(t *testing.T) {
+	t.Parallel()
+
+	t.Run("sweep stale MCP entries", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		// Create .mcp.json with only "slack" server
+		os.WriteFile(filepath.Join(projectDir, ".mcp.json"), []byte(`{
+			"mcpServers": {
+				"slack": {"type": "stdio", "command": "slack-mcp"}
+			}
+		}`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__slack__post_message",
+      "mcp__jira__create_issue",
+      "mcp__sentry__get_alert",
+      "mcp__plugin_github_github__search_code",
+      "Read",
+      "Bash(npm run *)"
+    ],
+    "deny": [
+      "mcp__jira__delete_issue"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			SweepMCP:    true,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// slack server exists → keep
+		if !strings.Contains(got, `"mcp__slack__post_message"`) {
+			t.Error("mcp__slack entry should be kept (server exists)")
+		}
+		// jira server missing → sweep
+		if strings.Contains(got, `"mcp__jira__create_issue"`) {
+			t.Error("mcp__jira entry should be swept (server missing)")
+		}
+		// sentry server missing → sweep
+		if strings.Contains(got, `"mcp__sentry__get_alert"`) {
+			t.Error("mcp__sentry entry should be swept (server missing)")
+		}
+		// plugin entry → keep (not standard MCP)
+		if !strings.Contains(got, `"mcp__plugin_github_github__search_code"`) {
+			t.Error("plugin entry should be kept")
+		}
+		// non-MCP entries → keep
+		if !strings.Contains(got, `"Read"`) {
+			t.Error("non-MCP entry was removed")
+		}
+		if !strings.Contains(got, `"Bash(npm run *)"`) {
+			t.Error("Bash entry was removed")
+		}
+		// deny MCP entry → keep
+		if !strings.Contains(got, `"mcp__jira__delete_issue"`) {
+			t.Error("deny MCP entry was incorrectly swept")
+		}
+
+		output := buf.String()
+		if !strings.Contains(output, "Swept:") {
+			t.Errorf("expected swept stats in output: %s", output)
+		}
+	})
+
+	t.Run("MCP sweep disabled by default", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__jira__create_issue"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		// SweepMCP is NOT set
+		cli := &CLI{Target: file, Verbose: true, checker: &osPathChecker{}, w: &buf}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"mcp__jira__create_issue"`) {
+			t.Error("MCP entry was swept without --sweep-mcp flag")
+		}
+	})
+
+	t.Run("MCP sweep with claude.json servers", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		// No .mcp.json, but ~/.claude.json has servers
+		os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{
+			"mcpServers": {
+				"github": {"type": "stdio"}
+			}
+		}`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__github__search_code",
+      "mcp__slack__post_message"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			SweepMCP:    true,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"mcp__github__search_code"`) {
+			t.Error("github entry should be kept (in claude.json)")
+		}
+		if strings.Contains(got, `"mcp__slack__post_message"`) {
+			t.Error("slack entry should be swept (not in any config)")
+		}
+	})
+
+	t.Run("MCP sweep with exclude_servers config", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.mcp]
+exclude_servers = ["jira"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__jira__create_issue",
+      "mcp__sentry__get_alert"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			SweepMCP:    true,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         cfg,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// jira excluded → keep
+		if !strings.Contains(got, `"mcp__jira__create_issue"`) {
+			t.Error("jira entry should be kept (excluded by config)")
+		}
+		// sentry not excluded → sweep
+		if strings.Contains(got, `"mcp__sentry__get_alert"`) {
+			t.Error("sentry entry should be swept (not excluded)")
+		}
+	})
+
+	t.Run("config enabled activates MCP sweep without CLI flag", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.mcp]
+enabled = true
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__jira__create_issue"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         cfg,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if strings.Contains(got, `"mcp__jira__create_issue"`) {
+			t.Error("MCP entry should be swept when config enabled=true")
+		}
+	})
+}

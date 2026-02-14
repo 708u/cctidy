@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	toml "github.com/pelletier/go-toml/v2"
 )
@@ -97,17 +98,9 @@ func unionStrings(a, b []string) []string {
 	if len(a) == 0 && len(b) == 0 {
 		return nil
 	}
-	seen := make(map[string]struct{}, len(a)+len(b))
-	result := make([]string, 0, len(a)+len(b))
-	for _, s := range a {
-		if _, ok := seen[s]; !ok {
-			seen[s] = struct{}{}
-			result = append(result, s)
-		}
-	}
+	result := slices.Clone(a)
 	for _, s := range b {
-		if _, ok := seen[s]; !ok {
-			seen[s] = struct{}{}
+		if !slices.Contains(result, s) {
 			result = append(result, s)
 		}
 	}

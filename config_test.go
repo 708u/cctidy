@@ -192,39 +192,19 @@ func TestUnionStrings(t *testing.T) {
 func TestMergeRawConfigs(t *testing.T) {
 	t.Parallel()
 
-	t.Run("both nil", func(t *testing.T) {
+	t.Run("both zero", func(t *testing.T) {
 		t.Parallel()
-		got := mergeRawConfigs(nil, nil)
-		if got != nil {
-			t.Error("expected nil")
-		}
-	})
-
-	t.Run("base nil", func(t *testing.T) {
-		t.Parallel()
-		overlay := &rawConfig{}
-		overlay.Sweep.Bash.Enabled = boolPtr(true)
-		got := mergeRawConfigs(nil, overlay)
-		if got != overlay {
-			t.Error("expected overlay returned as-is")
-		}
-	})
-
-	t.Run("overlay nil", func(t *testing.T) {
-		t.Parallel()
-		base := &rawConfig{}
-		base.Sweep.Bash.Enabled = boolPtr(false)
-		got := mergeRawConfigs(base, nil)
-		if got != base {
-			t.Error("expected base returned as-is")
+		got := mergeRawConfigs(rawConfig{}, rawConfig{})
+		if got.Sweep.Bash.Enabled != nil {
+			t.Error("expected Enabled nil for both zero")
 		}
 	})
 
 	t.Run("overlay Enabled overrides base", func(t *testing.T) {
 		t.Parallel()
-		base := &rawConfig{}
+		base := rawConfig{}
 		base.Sweep.Bash.Enabled = boolPtr(true)
-		overlay := &rawConfig{}
+		overlay := rawConfig{}
 		overlay.Sweep.Bash.Enabled = boolPtr(false)
 		got := mergeRawConfigs(base, overlay)
 		if got.Sweep.Bash.Enabled == nil || *got.Sweep.Bash.Enabled {
@@ -234,10 +214,9 @@ func TestMergeRawConfigs(t *testing.T) {
 
 	t.Run("overlay Enabled nil preserves base", func(t *testing.T) {
 		t.Parallel()
-		base := &rawConfig{}
+		base := rawConfig{}
 		base.Sweep.Bash.Enabled = boolPtr(true)
-		overlay := &rawConfig{}
-		got := mergeRawConfigs(base, overlay)
+		got := mergeRawConfigs(base, rawConfig{})
 		if got.Sweep.Bash.Enabled == nil || !*got.Sweep.Bash.Enabled {
 			t.Error("base Enabled=true should be preserved")
 		}
@@ -245,9 +224,9 @@ func TestMergeRawConfigs(t *testing.T) {
 
 	t.Run("arrays union", func(t *testing.T) {
 		t.Parallel()
-		base := &rawConfig{}
+		base := rawConfig{}
 		base.Sweep.Bash.ExcludeCommands = []string{"mkdir", "touch"}
-		overlay := &rawConfig{}
+		overlay := rawConfig{}
 		overlay.Sweep.Bash.ExcludeCommands = []string{"touch", "rm"}
 		got := mergeRawConfigs(base, overlay)
 		want := []string{"mkdir", "touch", "rm"}
@@ -260,19 +239,23 @@ func TestMergeRawConfigs(t *testing.T) {
 func TestMergeConfig(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil project returns base", func(t *testing.T) {
+	t.Run("zero project is no-op", func(t *testing.T) {
 		t.Parallel()
 		base := &Config{}
 		base.Sweep.Bash.Enabled = true
-		got := MergeConfig(base, nil, "/project")
-		if got != base {
-			t.Error("expected base returned as-is")
+		base.Sweep.Bash.ExcludeCommands = []string{"mkdir"}
+		got := MergeConfig(base, rawConfig{}, "/project")
+		if !got.Sweep.Bash.Enabled {
+			t.Error("base Enabled=true should be preserved")
+		}
+		if !slices.Equal(got.Sweep.Bash.ExcludeCommands, []string{"mkdir"}) {
+			t.Errorf("commands: got %v, want [mkdir]", got.Sweep.Bash.ExcludeCommands)
 		}
 	})
 
 	t.Run("nil base treated as zero", func(t *testing.T) {
 		t.Parallel()
-		project := &rawConfig{}
+		project := rawConfig{}
 		project.Sweep.Bash.Enabled = boolPtr(true)
 		got := MergeConfig(nil, project, "/project")
 		if !got.Sweep.Bash.Enabled {
@@ -284,7 +267,7 @@ func TestMergeConfig(t *testing.T) {
 		t.Parallel()
 		base := &Config{}
 		base.Sweep.Bash.Enabled = true
-		project := &rawConfig{}
+		project := rawConfig{}
 		project.Sweep.Bash.Enabled = boolPtr(false)
 		got := MergeConfig(base, project, "/project")
 		if got.Sweep.Bash.Enabled {
@@ -296,8 +279,7 @@ func TestMergeConfig(t *testing.T) {
 		t.Parallel()
 		base := &Config{}
 		base.Sweep.Bash.Enabled = true
-		project := &rawConfig{}
-		got := MergeConfig(base, project, "/project")
+		got := MergeConfig(base, rawConfig{}, "/project")
 		if !got.Sweep.Bash.Enabled {
 			t.Error("base Enabled=true should be preserved")
 		}
@@ -308,7 +290,7 @@ func TestMergeConfig(t *testing.T) {
 		base := &Config{}
 		base.Sweep.Bash.ExcludeCommands = []string{"mkdir", "touch"}
 		base.Sweep.Bash.ExcludeEntries = []string{"entry1"}
-		project := &rawConfig{}
+		project := rawConfig{}
 		project.Sweep.Bash.ExcludeCommands = []string{"touch", "rm"}
 		project.Sweep.Bash.ExcludeEntries = []string{"entry1", "entry2"}
 		got := MergeConfig(base, project, "/project")
@@ -326,7 +308,7 @@ func TestMergeConfig(t *testing.T) {
 		t.Parallel()
 		base := &Config{}
 		base.Sweep.Bash.ExcludePaths = []string{"/global/path/"}
-		project := &rawConfig{}
+		project := rawConfig{}
 		project.Sweep.Bash.ExcludePaths = []string{"vendor/", "/abs/path/"}
 		got := MergeConfig(base, project, "/myproject")
 		// filepath.Join strips trailing slash: "vendor/" -> "/myproject/vendor"
@@ -340,15 +322,15 @@ func TestMergeConfig(t *testing.T) {
 func TestLoadProjectConfig(t *testing.T) {
 	t.Parallel()
 
-	t.Run("both absent returns nil", func(t *testing.T) {
+	t.Run("both absent returns zero", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		got, err := LoadProjectConfig(dir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got != nil {
-			t.Error("expected nil for missing project config")
+		if got.Sweep.Bash.Enabled != nil {
+			t.Error("expected Enabled nil for missing project config")
 		}
 	})
 
@@ -363,9 +345,6 @@ func TestLoadProjectConfig(t *testing.T) {
 		got, err := LoadProjectConfig(dir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
-		}
-		if got == nil {
-			t.Fatal("expected non-nil config")
 		}
 		if got.Sweep.Bash.Enabled == nil || !*got.Sweep.Bash.Enabled {
 			t.Error("expected Enabled=true from shared")
@@ -387,9 +366,6 @@ func TestLoadProjectConfig(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got == nil {
-			t.Fatal("expected non-nil config")
-		}
 		if got.Sweep.Bash.Enabled == nil || *got.Sweep.Bash.Enabled {
 			t.Error("expected Enabled=false from local")
 		}
@@ -408,9 +384,6 @@ func TestLoadProjectConfig(t *testing.T) {
 		got, err := LoadProjectConfig(dir)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
-		}
-		if got == nil {
-			t.Fatal("expected non-nil config")
 		}
 		if got.Sweep.Bash.Enabled == nil || *got.Sweep.Bash.Enabled {
 			t.Error("local Enabled=false should override shared")

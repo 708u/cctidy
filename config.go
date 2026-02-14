@@ -62,29 +62,26 @@ func defaultConfigPath() (string, error) {
 }
 
 // loadRawConfig reads a TOML file into a rawConfig.
-// Returns nil, nil when the file does not exist.
-func loadRawConfig(path string) (*rawConfig, error) {
+// Returns zero value when the file does not exist.
+func loadRawConfig(path string) (rawConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, nil
+			return rawConfig{}, nil
 		}
-		return nil, fmt.Errorf("reading config %s: %w", path, err)
+		return rawConfig{}, fmt.Errorf("reading config %s: %w", path, err)
 	}
 
 	var raw rawConfig
 	if err := toml.Unmarshal(data, &raw); err != nil {
-		return nil, fmt.Errorf("parsing config %s: %w", path, err)
+		return rawConfig{}, fmt.Errorf("parsing config %s: %w", path, err)
 	}
-	return &raw, nil
+	return raw, nil
 }
 
 // rawToConfig converts a rawConfig to the public Config type.
-func rawToConfig(raw *rawConfig) *Config {
+func rawToConfig(raw rawConfig) *Config {
 	cfg := &Config{}
-	if raw == nil {
-		return cfg
-	}
 	if raw.Sweep.Bash.Enabled != nil {
 		cfg.Sweep.Bash.Enabled = *raw.Sweep.Bash.Enabled
 	}
@@ -119,18 +116,8 @@ func unionStrings(a, b []string) []string {
 
 // mergeRawConfigs merges overlay on top of base.
 // Enabled: overlay wins if set. Arrays: union with dedup.
-func mergeRawConfigs(base, overlay *rawConfig) *rawConfig {
-	if base == nil && overlay == nil {
-		return nil
-	}
-	if base == nil {
-		return overlay
-	}
-	if overlay == nil {
-		return base
-	}
-
-	merged := &rawConfig{}
+func mergeRawConfigs(base, overlay rawConfig) rawConfig {
+	merged := rawConfig{}
 
 	// Enabled: overlay wins if explicitly set
 	if overlay.Sweep.Bash.Enabled != nil {
@@ -171,29 +158,24 @@ func LoadConfig(path string) (*Config, error) {
 // LoadProjectConfig reads project-level config files from
 // <projectRoot>/.claude/cctidy.toml (shared) and
 // <projectRoot>/.claude/cctidy.local.toml (local).
-// Local overrides shared. Returns nil, nil when both files are absent.
-func LoadProjectConfig(projectRoot string) (*rawConfig, error) {
+// Local overrides shared. Returns zero value when both files are absent.
+func LoadProjectConfig(projectRoot string) (rawConfig, error) {
 	claudeDir := filepath.Join(projectRoot, ".claude")
 	shared, err := loadRawConfig(filepath.Join(claudeDir, "cctidy.toml"))
 	if err != nil {
-		return nil, err
+		return rawConfig{}, err
 	}
 	local, err := loadRawConfig(filepath.Join(claudeDir, "cctidy.local.toml"))
 	if err != nil {
-		return nil, err
+		return rawConfig{}, err
 	}
-	merged := mergeRawConfigs(shared, local)
-	return merged, nil
+	return mergeRawConfigs(shared, local), nil
 }
 
 // MergeConfig merges a project rawConfig on top of a global Config.
 // Relative paths in the project config's ExcludePaths are resolved
 // against projectRoot before merging.
-// Returns base unchanged when project is nil.
-func MergeConfig(base *Config, project *rawConfig, projectRoot string) *Config {
-	if project == nil {
-		return base
-	}
+func MergeConfig(base *Config, project rawConfig, projectRoot string) *Config {
 	if base == nil {
 		base = &Config{}
 	}

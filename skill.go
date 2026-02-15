@@ -5,10 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-)
 
-// SkillNameSet is a set of known skill names.
-type SkillNameSet map[string]bool
+	"github.com/708u/cctidy/internal/set"
+)
 
 // LoadSkillNames scans the skills and commands directories under
 // claudeDir and returns a set of skill names.
@@ -20,18 +19,18 @@ type SkillNameSet map[string]bool
 // The filename without extension is the skill name.
 //
 // Returns an empty set if claudeDir is empty or unreadable.
-func LoadSkillNames(claudeDir string) SkillNameSet {
-	set := make(SkillNameSet)
+func LoadSkillNames(claudeDir string) set.Value[string] {
+	s := set.New[string]()
 	if claudeDir == "" {
-		return set
+		return s
 	}
-	loadSkillsDir(filepath.Join(claudeDir, "skills"), set)
-	loadCommandsDir(filepath.Join(claudeDir, "commands"), set)
-	return set
+	loadSkillsDir(filepath.Join(claudeDir, "skills"), s)
+	loadCommandsDir(filepath.Join(claudeDir, "commands"), s)
+	return s
 }
 
 // loadSkillsDir scans dir for subdirectories containing SKILL.md.
-func loadSkillsDir(dir string, set SkillNameSet) {
+func loadSkillsDir(dir string, s set.Value[string]) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -42,13 +41,13 @@ func loadSkillsDir(dir string, set SkillNameSet) {
 		}
 		skillFile := filepath.Join(dir, e.Name(), "SKILL.md")
 		if _, err := os.Stat(skillFile); err == nil {
-			set[e.Name()] = true
+			s.Add(e.Name())
 		}
 	}
 }
 
 // loadCommandsDir scans dir for .md files.
-func loadCommandsDir(dir string, set SkillNameSet) {
+func loadCommandsDir(dir string, s set.Value[string]) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return
@@ -62,7 +61,7 @@ func loadCommandsDir(dir string, set SkillNameSet) {
 		}
 		name := strings.TrimSuffix(e.Name(), ".md")
 		if name != "" {
-			set[name] = true
+			s.Add(name)
 		}
 	}
 }
@@ -71,11 +70,11 @@ func loadCommandsDir(dir string, set SkillNameSet) {
 // referenced skill or command no longer exists. Plugin skills
 // (containing ":") are always kept.
 type SkillToolSweeper struct {
-	skills SkillNameSet
+	skills set.Value[string]
 }
 
 // NewSkillToolSweeper creates a SkillToolSweeper.
-func NewSkillToolSweeper(skills SkillNameSet) *SkillToolSweeper {
+func NewSkillToolSweeper(skills set.Value[string]) *SkillToolSweeper {
 	return &SkillToolSweeper{skills: skills}
 }
 
@@ -88,10 +87,10 @@ func (s *SkillToolSweeper) ShouldSweep(_ context.Context, entry StandardEntry) T
 	}
 	// Extract name from specifier (e.g. "name *" -> "name").
 	name, _, _ := strings.Cut(specifier, " ")
-	if len(s.skills) == 0 {
+	if s.skills.Len() == 0 {
 		return ToolSweepResult{}
 	}
-	if s.skills[name] {
+	if s.skills.Has(name) {
 		return ToolSweepResult{}
 	}
 	return ToolSweepResult{Sweep: true}

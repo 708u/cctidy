@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/708u/cctidy/internal/set"
 )
 
 func TestLoadSkillNames(t *testing.T) {
@@ -17,8 +19,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(skillsDir, 0o755)
 		os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Skill"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if !set["my-skill"] {
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("my-skill") {
 			t.Error("skill name should be in set")
 		}
 	})
@@ -31,8 +33,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(commandsDir, 0o755)
 		os.WriteFile(filepath.Join(commandsDir, "review.md"), []byte("# Review"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if !set["review"] {
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("review") {
 			t.Error("command name should be in set")
 		}
 	})
@@ -48,8 +50,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Skill"), 0o644)
 		os.WriteFile(filepath.Join(commandsDir, "deploy.md"), []byte("# Command"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if !set["deploy"] {
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("deploy") {
 			t.Error("unified name should be in set")
 		}
 	})
@@ -62,8 +64,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(skillsDir, 0o755)
 		os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Skill"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if !set["only-skill"] {
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("only-skill") {
 			t.Error("skill name should be in set")
 		}
 	})
@@ -76,25 +78,25 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(commandsDir, 0o755)
 		os.WriteFile(filepath.Join(commandsDir, "only-cmd.md"), []byte("# Cmd"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if !set["only-cmd"] {
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("only-cmd") {
 			t.Error("command name should be in set")
 		}
 	})
 
 	t.Run("non-existent directory returns empty set", func(t *testing.T) {
 		t.Parallel()
-		set := LoadSkillNames("/nonexistent/dir")
-		if len(set) != 0 {
-			t.Errorf("expected empty set, got %v", set)
+		s := LoadSkillNames("/nonexistent/dir")
+		if s.Len() != 0 {
+			t.Errorf("expected empty set, got %v", s)
 		}
 	})
 
 	t.Run("empty string returns empty set", func(t *testing.T) {
 		t.Parallel()
-		set := LoadSkillNames("")
-		if len(set) != 0 {
-			t.Errorf("expected empty set, got %v", set)
+		s := LoadSkillNames("")
+		if s.Len() != 0 {
+			t.Errorf("expected empty set, got %v", s)
 		}
 	})
 
@@ -106,8 +108,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(skillsDir, 0o755)
 		os.WriteFile(filepath.Join(skillsDir, "README.md"), []byte("# Not a skill"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if set["no-skill-md"] {
+		s := LoadSkillNames(claudeDir)
+		if s.Has("no-skill-md") {
 			t.Error("dir without SKILL.md should not be in set")
 		}
 	})
@@ -121,11 +123,11 @@ func TestLoadSkillNames(t *testing.T) {
 		os.WriteFile(filepath.Join(commandsDir, "readme.txt"), []byte("not a command"), 0o644)
 		os.WriteFile(filepath.Join(commandsDir, "valid.md"), []byte("# Valid"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if set["readme"] {
+		s := LoadSkillNames(claudeDir)
+		if s.Has("readme") {
 			t.Error("non-.md file should not be in set")
 		}
-		if !set["valid"] {
+		if !s.Has("valid") {
 			t.Error("valid .md file should be in set")
 		}
 	})
@@ -138,8 +140,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(commandsDir, 0o755)
 		os.Mkdir(filepath.Join(commandsDir, "subdir.md"), 0o755)
 
-		set := LoadSkillNames(claudeDir)
-		if set["subdir"] {
+		s := LoadSkillNames(claudeDir)
+		if s.Has("subdir") {
 			t.Error("directory should not be in set")
 		}
 	})
@@ -152,8 +154,8 @@ func TestLoadSkillNames(t *testing.T) {
 		os.MkdirAll(skillsDir, 0o755)
 		os.WriteFile(filepath.Join(skillsDir, "stray-file.md"), []byte("# Stray"), 0o644)
 
-		set := LoadSkillNames(claudeDir)
-		if set["stray-file"] {
+		s := LoadSkillNames(claudeDir)
+		if s.Has("stray-file") {
 			t.Error("file directly in skills dir should not be in set")
 		}
 	})
@@ -162,9 +164,9 @@ func TestLoadSkillNames(t *testing.T) {
 func TestSkillToolSweeperShouldSweep(t *testing.T) {
 	t.Parallel()
 
-	skillsWithReview := SkillNameSet{"review": true}
-	skillsWithDeploy := SkillNameSet{"deploy": true}
-	emptySkills := SkillNameSet{}
+	skillsWithReview := set.New("review")
+	skillsWithDeploy := set.New("deploy")
+	emptySkills := set.New[string]()
 
 	tests := []struct {
 		name      string

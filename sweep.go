@@ -301,7 +301,7 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 // TaskToolSweeper sweeps Task permission entries where the
 // referenced agent no longer exists. Built-in agents, plugin
 // agents (containing ":"), and agents whose name appears in
-// the AgentNameSet are always kept.
+// the agent name set are always kept.
 type TaskToolSweeper struct {
 	agents set.Value[string]
 }

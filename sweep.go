@@ -103,15 +103,15 @@ const (
 	ToolMCP   ToolName = "mcp"
 )
 
-// builtinAgents lists agent names that are always available
+// builtinAgents maps agent names that are always available
 // in Claude Code and should never be swept.
-var builtinAgents = []string{
-	"Bash",
-	"Explore",
-	"Plan",
-	"claude-code-guide",
-	"general-purpose",
-	"statusline-setup",
+var builtinAgents = map[string]bool{
+	"Bash":              true,
+	"Explore":           true,
+	"Plan":              true,
+	"claude-code-guide": true,
+	"general-purpose":   true,
+	"statusline-setup":  true,
 }
 
 // ReadEditToolSweeper sweeps Read/Edit/Write permission entries
@@ -306,29 +306,23 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 // agents (containing ":"), and agents with a .md file in the
 // agents directory are always kept.
 type TaskToolSweeper struct {
-	checker  PathChecker
-	homeDir  string
-	baseDir  string
-	builtins map[string]bool
+	checker PathChecker
+	homeDir string
+	baseDir string
 }
 
 // NewTaskToolSweeper creates a TaskToolSweeper.
 func NewTaskToolSweeper(checker PathChecker, homeDir, baseDir string) *TaskToolSweeper {
-	builtins := make(map[string]bool, len(builtinAgents))
-	for _, a := range builtinAgents {
-		builtins[a] = true
-	}
 	return &TaskToolSweeper{
-		checker:  checker,
-		homeDir:  homeDir,
-		baseDir:  baseDir,
-		builtins: builtins,
+		checker: checker,
+		homeDir: homeDir,
+		baseDir: baseDir,
 	}
 }
 
 func (t *TaskToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) ToolSweepResult {
 	specifier := entry.Specifier
-	if t.builtins[specifier] {
+	if builtinAgents[specifier] {
 		return ToolSweepResult{}
 	}
 	if strings.Contains(specifier, ":") {

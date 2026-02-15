@@ -726,7 +726,7 @@ func TestSweepPermissions(t *testing.T) {
 					"allow": tt.entries,
 				},
 			}
-			result := NewPermissionSweeper(tt.checker, tt.homeDir, tt.opts...).Sweep(t.Context(), obj)
+			result := NewPermissionSweeper(tt.checker, tt.homeDir, nil, tt.opts...).Sweep(t.Context(), obj)
 			allow := obj["permissions"].(map[string]any)["allow"].([]any)
 			if len(allow) != tt.wantAllowLen {
 				t.Errorf("allow len = %d, want %d, got %v", len(allow), tt.wantAllowLen, allow)
@@ -747,7 +747,7 @@ func TestSweepPermissions(t *testing.T) {
 				"allow": []any{"Edit(./file.go)"},
 			},
 		}
-		result := NewPermissionSweeper(testutil.CheckerFor(filepath.Join(dir, "file.go")), "", WithBaseDir(dir)).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.CheckerFor(filepath.Join(dir, "file.go")), "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow should have 1 entry, got %v", allow)
@@ -760,7 +760,7 @@ func TestSweepPermissions(t *testing.T) {
 	t.Run("missing permissions key is no-op", func(t *testing.T) {
 		t.Parallel()
 		obj := map[string]any{"key": "value"}
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "").Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.AllPathsExist{}, "", nil).Sweep(t.Context(), obj)
 		if result.SweptAllow != 0 || result.SweptAsk != 0 {
 			t.Errorf("expected zero counts, got allow=%d ask=%d",
 				result.SweptAllow, result.SweptAsk)
@@ -781,7 +781,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 2 {
 			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
@@ -800,7 +800,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.CheckerFor("/alive/src"), "", WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.CheckerFor("/alive/src"), "", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
@@ -819,7 +819,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "").Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
@@ -838,7 +838,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "/home/user", WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "/home/user", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 0 {
 			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
@@ -857,7 +857,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", WithBashSweep(BashSweepConfig{}), WithBaseDir("/project")).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashSweep(BashSweepConfig{}), WithBaseDir("/project")).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 0 {
 			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
@@ -876,7 +876,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
@@ -895,7 +895,7 @@ func TestSweepPermissions(t *testing.T) {
 				"ask":   []any{"Edit(//dead/ask)"},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "").Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil).Sweep(t.Context(), obj)
 		if result.SweptAllow != 1 {
 			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
 		}
@@ -920,8 +920,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "",
-			WithMCPSweep(servers)).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.AllPathsExist{}, "", servers).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 2 {
 			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
@@ -939,8 +938,7 @@ func TestSweepPermissions(t *testing.T) {
 				"allow": []any{"mcp__slack__post_message"},
 			},
 		}
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "",
-			WithMCPSweep(servers)).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.AllPathsExist{}, "", servers).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1", len(allow))
@@ -958,8 +956,7 @@ func TestSweepPermissions(t *testing.T) {
 				"allow": []any{"mcp__jira__create_issue(query)"},
 			},
 		}
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "",
-			WithMCPSweep(servers)).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.AllPathsExist{}, "", servers).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 0 {
 			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
@@ -977,8 +974,7 @@ func TestSweepPermissions(t *testing.T) {
 				"allow": []any{"mcp__plugin_github_github__search_code"},
 			},
 		}
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "",
-			WithMCPSweep(servers)).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.AllPathsExist{}, "", servers).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("plugin entry should be kept, got %v", allow)
@@ -996,8 +992,7 @@ func TestSweepPermissions(t *testing.T) {
 				"ask": []any{"mcp__jira__create_issue"},
 			},
 		}
-		result := NewPermissionSweeper(testutil.AllPathsExist{}, "",
-			WithMCPSweep(servers)).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.AllPathsExist{}, "", servers).Sweep(t.Context(), obj)
 		ask := obj["permissions"].(map[string]any)["ask"].([]any)
 		if len(ask) != 0 {
 			t.Errorf("ask len = %d, want 0", len(ask))

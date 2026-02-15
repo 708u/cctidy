@@ -68,10 +68,9 @@ func TestSettingsGolden(t *testing.T) {
 		filepath.Join(baseDir, "../alive/output.txt"),
 	)
 	mcpServers := cctidy.MCPServerSet{"github": true}
-	sweeper := cctidy.NewPermissionSweeper(checker, homeDir,
+	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, mcpServers,
 		cctidy.WithBashSweep(cctidy.BashSweepConfig{}),
 		cctidy.WithBaseDir(baseDir),
-		cctidy.WithMCPSweep(mcpServers),
 	)
 	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
 	if err != nil {
@@ -321,7 +320,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(testutil.AllPathsExist{})},
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -359,7 +358,7 @@ func TestRunMultipleTargets(t *testing.T) {
 		cli := &CLI{Verbose: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
 			{path: claudeJSON, formatter: cctidy.NewClaudeJSONFormatter(testutil.AllPathsExist{})},
-			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: missingFile, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -382,8 +381,8 @@ func TestRunMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Verbose: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
-			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
-			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: settingsJSON, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
+			{path: filepath.Join(dir, "missing.json"), formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -525,8 +524,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -546,8 +545,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		err := cli.runTargets(t.Context(), targets)
 		if !errors.Is(err, errUnformatted) {
@@ -566,8 +565,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
-			{path: missing, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
+			{path: missing, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		if err := cli.runTargets(t.Context(), targets); err != nil {
 			t.Fatalf("expected nil, got: %v", err)
@@ -587,8 +586,8 @@ func TestCheckMultipleTargets(t *testing.T) {
 		var buf bytes.Buffer
 		cli := &CLI{Check: true, Verbose: true, checker: testutil.AllPathsExist{}, w: &buf}
 		targets := []targetFile{
-			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
-			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, ""))},
+			{path: f1, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
+			{path: f2, formatter: cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(testutil.AllPathsExist{}, "", nil))},
 		}
 		cli.runTargets(t.Context(), targets)
 

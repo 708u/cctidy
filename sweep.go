@@ -322,7 +322,6 @@ type sweepConfig struct {
 	baseDir      string
 	bashSweep    bool
 	bashSweepCfg BashSweepConfig
-	mcpServers   MCPServerSet
 }
 
 // WithBaseDir sets the base directory for resolving relative path specifiers.
@@ -343,17 +342,10 @@ func WithBashSweep(cfg BashSweepConfig) SweepOption {
 	}
 }
 
-// WithMCPSweep enables sweeping of MCP tool permission entries
-// whose server is no longer present in the known server set.
-func WithMCPSweep(servers MCPServerSet) SweepOption {
-	return func(c *sweepConfig) {
-		c.mcpServers = servers
-	}
-}
-
 // NewPermissionSweeper creates a PermissionSweeper.
 // homeDir is required for resolving ~/path specifiers.
-func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOption) *PermissionSweeper {
+// servers is the set of known MCP server names for MCP sweep.
+func NewPermissionSweeper(checker PathChecker, homeDir string, servers MCPServerSet, opts ...SweepOption) *PermissionSweeper {
 	var cfg sweepConfig
 	for _, o := range opts {
 		o(&cfg)
@@ -365,7 +357,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 		baseDir: cfg.baseDir,
 	}
 
-	mcp := NewMCPToolSweeper(cfg.mcpServers)
+	mcp := NewMCPToolSweeper(servers)
 
 	tools := map[ToolName]ToolSweeper{
 		ToolRead:  NewToolSweeper(re.ShouldSweep),

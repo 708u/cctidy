@@ -208,8 +208,7 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 		opts = append(opts, cctidy.WithBashSweep(bashCfg))
 	}
 	servers := c.loadMCPServers(home)
-	opts = append(opts, cctidy.WithMCPSweep(servers))
-	sweeper := cctidy.NewPermissionSweeper(c.checker, home, opts...)
+	sweeper := cctidy.NewPermissionSweeper(c.checker, home, servers, opts...)
 	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
 	if filepath.Base(c.Target) == ".claude.json" {
 		f = cctidy.NewClaudeJSONFormatter(c.checker)
@@ -258,11 +257,8 @@ func (c *CLI) defaultTargets(home string) []targetFile {
 		projectOpts = append(projectOpts, bashOpt)
 	}
 	servers := c.loadMCPServers(home)
-	mcpOpt := cctidy.WithMCPSweep(servers)
-	globalOpts = append(globalOpts, mcpOpt)
-	projectOpts = append(projectOpts, mcpOpt)
-	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, globalOpts...))
-	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, projectOpts...))
+	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, servers, globalOpts...))
+	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, servers, projectOpts...))
 	return []targetFile{
 		{path: filepath.Join(home, ".claude.json"), formatter: claude},
 		{path: filepath.Join(home, ".claude", "settings.json"), formatter: globalSettings},

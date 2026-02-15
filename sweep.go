@@ -52,7 +52,19 @@ const (
 	ToolEdit  ToolName = "Edit"
 	ToolWrite ToolName = "Write"
 	ToolBash  ToolName = "Bash"
+	ToolTask  ToolName = "Task"
 )
+
+// builtinAgents lists agent names that are always available
+// in Claude Code and should never be swept.
+var builtinAgents = []string{
+	"Bash",
+	"Explore",
+	"Plan",
+	"claude-code-guide",
+	"general-purpose",
+	"statusline-setup",
+}
 
 // ReadEditToolSweeper sweeps Read/Edit/Write permission entries
 // that reference non-existent paths.
@@ -239,6 +251,72 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) Too
 	return ToolSweepResult{Sweep: true}
 }
 
+// TaskToolSweeper sweeps Task permission entries where the
+// referenced agent no longer exists. Built-in agents, plugin
+// agents (containing ":"), excluded agents, and agents with
+// a .md file in the agents directory are always kept.
+type TaskToolSweeper struct {
+	checker  PathChecker
+	homeDir  string
+	baseDir  string
+	builtins map[string]bool
+	excludes map[string]bool
+}
+
+// NewTaskToolSweeper creates a TaskToolSweeper.
+func NewTaskToolSweeper(checker PathChecker, homeDir, baseDir string, cfg TaskSweepConfig) *TaskToolSweeper {
+	builtins := make(map[string]bool, len(builtinAgents))
+	for _, a := range builtinAgents {
+		builtins[a] = true
+	}
+	excludes := make(map[string]bool, len(cfg.ExcludeAgents))
+	for _, a := range cfg.ExcludeAgents {
+		excludes[a] = true
+	}
+	return &TaskToolSweeper{
+		checker:  checker,
+		homeDir:  homeDir,
+		baseDir:  baseDir,
+		builtins: builtins,
+		excludes: excludes,
+	}
+}
+
+func (t *TaskToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
+	if t.builtins[specifier] {
+		return ToolSweepResult{}
+	}
+	if t.excludes[specifier] {
+		return ToolSweepResult{}
+	}
+	if strings.Contains(specifier, ":") {
+		return ToolSweepResult{}
+	}
+
+	// Check home agents directory.
+	if t.homeDir != "" {
+		agentPath := filepath.Join(t.homeDir, ".claude", "agents", specifier+".md")
+		if t.checker.Exists(ctx, agentPath) {
+			return ToolSweepResult{}
+		}
+	}
+
+	// Check project agents directory.
+	if t.baseDir != "" {
+		agentPath := filepath.Join(t.baseDir, ".claude", "agents", specifier+".md")
+		if t.checker.Exists(ctx, agentPath) {
+			return ToolSweepResult{}
+		}
+	}
+
+	// No project context — conservative, keep the entry.
+	if t.baseDir == "" {
+		return ToolSweepResult{}
+	}
+
+	return ToolSweepResult{Sweep: true}
+}
+
 // SweepResult holds statistics from permission sweeping.
 // Deny entries are intentionally excluded from sweeping because they represent
 // explicit user prohibitions; removing stale deny rules costs nothing but
@@ -272,6 +350,8 @@ type sweepConfig struct {
 	baseDir      string
 	bashSweep    bool
 	bashSweepCfg BashSweepConfig
+	taskSweep    bool
+	taskSweepCfg TaskSweepConfig
 }
 
 // WithBaseDir sets the base directory for resolving relative path specifiers.
@@ -289,6 +369,17 @@ func WithBashSweep(cfg BashSweepConfig) SweepOption {
 	return func(c *sweepConfig) {
 		c.bashSweep = true
 		c.bashSweepCfg = cfg
+	}
+}
+
+// WithTaskSweep enables sweeping of Task permission entries whose
+// referenced agents no longer exist. The optional TaskSweepConfig
+// specifies exclusion patterns; entries matching any pattern are
+// always kept regardless of agent existence.
+func WithTaskSweep(cfg TaskSweepConfig) SweepOption {
+	return func(c *sweepConfig) {
+		c.taskSweep = true
+		c.taskSweepCfg = cfg
 	}
 }
 
@@ -316,6 +407,11 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 			baseDir:  cfg.baseDir,
 			excluder: NewBashExcluder(cfg.bashSweepCfg),
 		}
+	}
+	if cfg.taskSweep {
+		tools[ToolTask] = NewTaskToolSweeper(
+			checker, homeDir, cfg.baseDir, cfg.taskSweepCfg,
+		)
 	}
 
 	return &PermissionSweeper{tools: tools}

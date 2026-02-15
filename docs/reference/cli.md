@@ -15,6 +15,7 @@ cctidy [flags]
 | `--dry-run`           |       | false   | Show changes without writing      |
 | `--check`             |       | false   | Exit with 1 if any file is dirty  |
 | `--sweep-bash`        |       | false   | Include Bash entries in sweeping  |
+| `--sweep-task`        |       | false   | Include Task entries in sweeping  |
 | `--config`            |       | (auto)  | Path to config file               |
 | `--verbose`           | `-v`  | false   | Show formatting details           |
 | `--version`           |       |         | Print version                     |
@@ -33,7 +34,7 @@ layers overriding earlier ones.
 | 1 (low)  | `~/.config/cctidy/config.toml`  | Global  |
 | 2        | `.claude/cctidy.toml`           | Project |
 | 3        | `.claude/cctidy.local.toml`     | Local   |
-| 4 (high) | CLI flags (`--sweep-bash`)      | Runtime |
+| 4 (high) | CLI flags (`--sweep-bash`, etc) | Runtime |
 
 The global config path can be overridden with
 `--config PATH`.
@@ -95,14 +96,25 @@ Merged result: `enabled = true`,
 |                    |          |         | token match)               |
 | `exclude_paths`    | string[] | []      | Path prefixes to keep      |
 
+#### `[sweep.task]`
+
+| Key              | Type     | Default | Description              |
+| ---------------- | -------- | ------- | ------------------------ |
+| `enabled`        | bool     | (unset) | Enable Task sweep        |
+| `exclude_agents` | string[] | []      | Agent names to keep      |
+|                  |          |         | (exact match)            |
+
 ### Priority: CLI vs Config
 
-| config `enabled` | `--sweep-bash` | Result    |
-| ---------------- | --------------------- | --------- |
-| unset / false    | absent                | sweep OFF |
-| unset / false    | present               | sweep ON  |
-| true             | absent                | sweep ON  |
-| true             | present               | sweep ON  |
+The same priority rules apply to both `--sweep-bash`
+and `--sweep-task`:
+
+| config `enabled` | CLI flag | Result    |
+| ---------------- | -------- | --------- |
+| unset / false    | absent   | sweep OFF |
+| unset / false    | present  | sweep ON  |
+| true             | absent   | sweep ON  |
+| true             | present  | sweep ON  |
 
 The CLI flag always wins. Exclude patterns are
 config-only (no CLI flags).

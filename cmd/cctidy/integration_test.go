@@ -67,7 +67,7 @@ func TestSettingsGolden(t *testing.T) {
 		filepath.Join(baseDir, "src/alive.go"),
 		filepath.Join(baseDir, "../alive/output.txt"),
 	)
-	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, cctidy.WithBashSweep(cctidy.BashSweepConfig{}), cctidy.WithBaseDir(baseDir))
+	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, cctidy.WithBashSweep(cctidy.BashSweepConfig{}), cctidy.WithTaskSweep(cctidy.TaskSweepConfig{}), cctidy.WithBaseDir(baseDir))
 	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)
@@ -816,6 +816,287 @@ func TestIntegrationBashSweep(t *testing.T) {
 	if !strings.Contains(output, "Swept:") {
 		t.Errorf("expected swept stats in output: %s", output)
 	}
+}
+
+func TestIntegrationTaskSweep(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create project structure: dir/project/.claude/settings.json
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	agentsDir := filepath.Join(claudeDir, "agents")
+	os.MkdirAll(agentsDir, 0o755)
+
+	// Create an agent file for alive-agent
+	os.WriteFile(filepath.Join(agentsDir, "alive-agent.md"), []byte("# Alive Agent"), 0o644)
+
+	// Create a home agents directory with a home-agent
+	homeAgentsDir := filepath.Join(dir, ".claude", "agents")
+	os.MkdirAll(homeAgentsDir, 0o755)
+	os.WriteFile(filepath.Join(homeAgentsDir, "home-agent.md"), []byte("# Home Agent"), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Task(Explore)",
+      "Task(dead-agent)",
+      "Task(alive-agent)",
+      "Task(home-agent)",
+      "Task(plugin:some-agent)",
+      "Task(another-dead)",
+      "Read"
+    ],
+    "deny": [
+      "Task(denied-dead-agent)"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, SweepTask: true, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// built-in agent should be kept
+	if !strings.Contains(got, `"Task(Explore)"`) {
+		t.Error("built-in Task(Explore) was removed")
+	}
+	// dead agent should be swept
+	if strings.Contains(got, `"Task(dead-agent)"`) {
+		t.Error("dead Task(dead-agent) was not swept")
+	}
+	// alive agent (project .md) should be kept
+	if !strings.Contains(got, `"Task(alive-agent)"`) {
+		t.Error("alive Task(alive-agent) was removed")
+	}
+	// alive agent (home .md) should be kept
+	if !strings.Contains(got, `"Task(home-agent)"`) {
+		t.Error("alive Task(home-agent) was removed")
+	}
+	// plugin agent should be kept
+	if !strings.Contains(got, `"Task(plugin:some-agent)"`) {
+		t.Error("plugin Task(plugin:some-agent) was removed")
+	}
+	// another dead agent should be swept
+	if strings.Contains(got, `"Task(another-dead)"`) {
+		t.Error("dead Task(another-dead) was not swept")
+	}
+	// non-Task entry should be kept
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-Task entry was removed")
+	}
+	// deny entry should never be swept
+	if !strings.Contains(got, `"Task(denied-dead-agent)"`) {
+		t.Error("deny Task entry was incorrectly swept")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Swept:") {
+		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationTaskSweepDisabledByDefault(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Task(dead-agent)"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	// SweepTask is NOT set
+	cli := &CLI{Target: file, Verbose: true, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context(), dir); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	if !strings.Contains(got, `"Task(dead-agent)"`) {
+		t.Error("Task entry was swept without --sweep-task flag")
+	}
+}
+
+func TestIntegrationTaskSweepWithConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("config enabled activates task sweep", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.task]
+enabled = true
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Task(dead-agent)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         cfg,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if strings.Contains(got, `"Task(dead-agent)"`) {
+			t.Error("Task entry should be swept when config enabled=true")
+		}
+	})
+
+	t.Run("exclude_agents keeps excluded entries", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.task]
+exclude_agents = ["special-agent"]
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Task(special-agent)",
+      "Task(dead-agent)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			SweepTask:   true,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         cfg,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if !strings.Contains(got, `"Task(special-agent)"`) {
+			t.Error("excluded agent should be kept")
+		}
+		if strings.Contains(got, `"Task(dead-agent)"`) {
+			t.Error("non-excluded dead agent should be swept")
+		}
+	})
+
+	t.Run("CLI flag overrides config enabled=false", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		configDir := filepath.Join(dir, "config")
+		os.MkdirAll(configDir, 0o755)
+		configFile := filepath.Join(configDir, "config.toml")
+		os.WriteFile(configFile, []byte(`
+[sweep.task]
+enabled = false
+`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Task(dead-agent)"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		cfg, err := cctidy.LoadConfig(configFile)
+		if err != nil {
+			t.Fatalf("loading config: %v", err)
+		}
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			SweepTask:   true,
+			Verbose:     true,
+			checker:     &osPathChecker{},
+			cfg:         cfg,
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context(), dir); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		if strings.Contains(got, `"Task(dead-agent)"`) {
+			t.Error("CLI --sweep-task should override config enabled=false")
+		}
+	})
 }
 
 func TestIntegrationBashSweepDisabledByDefault(t *testing.T) {

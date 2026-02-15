@@ -19,6 +19,19 @@ type SweepToolConfig struct {
 	// Bash configures sweeping for Bash permission entries.
 	// "bash" corresponds to the Bash tool name in Claude Code permissions.
 	Bash BashSweepConfig `toml:"bash"`
+
+	// Task configures sweeping for Task permission entries.
+	// "task" corresponds to the Task tool name in Claude Code permissions.
+	Task TaskSweepConfig `toml:"task"`
+}
+
+// TaskSweepConfig controls Task permission entry sweeping.
+type TaskSweepConfig struct {
+	// Enabled turns on Task sweep when true.
+	Enabled bool `toml:"enabled"`
+
+	// ExcludeAgents lists agent names to exclude by exact match.
+	ExcludeAgents []string `toml:"exclude_agents"`
 }
 
 // BashSweepConfig controls Bash permission entry sweeping.
@@ -37,6 +50,12 @@ type BashSweepConfig struct {
 	ExcludePaths []string `toml:"exclude_paths"`
 }
 
+// rawTaskSweepConfig uses *bool to distinguish "unset" from "false".
+type rawTaskSweepConfig struct {
+	Enabled       *bool    `toml:"enabled"`
+	ExcludeAgents []string `toml:"exclude_agents"`
+}
+
 // rawBashSweepConfig uses *bool to distinguish "unset" from "false".
 type rawBashSweepConfig struct {
 	Enabled         *bool    `toml:"enabled"`
@@ -47,6 +66,7 @@ type rawBashSweepConfig struct {
 
 type rawSweepToolConfig struct {
 	Bash rawBashSweepConfig `toml:"bash"`
+	Task rawTaskSweepConfig `toml:"task"`
 }
 
 type rawConfig struct {
@@ -89,6 +109,11 @@ func rawToConfig(raw rawConfig) *Config {
 	cfg.Sweep.Bash.ExcludeEntries = raw.Sweep.Bash.ExcludeEntries
 	cfg.Sweep.Bash.ExcludeCommands = raw.Sweep.Bash.ExcludeCommands
 	cfg.Sweep.Bash.ExcludePaths = raw.Sweep.Bash.ExcludePaths
+
+	if raw.Sweep.Task.Enabled != nil {
+		cfg.Sweep.Task.Enabled = *raw.Sweep.Task.Enabled
+	}
+	cfg.Sweep.Task.ExcludeAgents = raw.Sweep.Task.ExcludeAgents
 	return cfg
 }
 
@@ -125,6 +150,15 @@ func mergeRawConfigs(base, overlay rawConfig) rawConfig {
 		base.Sweep.Bash.ExcludeCommands, overlay.Sweep.Bash.ExcludeCommands)
 	merged.Sweep.Bash.ExcludePaths = unionStrings(
 		base.Sweep.Bash.ExcludePaths, overlay.Sweep.Bash.ExcludePaths)
+
+	// Task merge
+	if overlay.Sweep.Task.Enabled != nil {
+		merged.Sweep.Task.Enabled = overlay.Sweep.Task.Enabled
+	} else {
+		merged.Sweep.Task.Enabled = base.Sweep.Task.Enabled
+	}
+	merged.Sweep.Task.ExcludeAgents = unionStrings(
+		base.Sweep.Task.ExcludeAgents, overlay.Sweep.Task.ExcludeAgents)
 
 	return merged
 }
@@ -197,6 +231,15 @@ func MergeConfig(base *Config, project rawConfig, projectRoot string) *Config {
 	}
 	merged.Sweep.Bash.ExcludePaths = unionStrings(
 		base.Sweep.Bash.ExcludePaths, resolvedPaths)
+
+	// Task merge
+	if project.Sweep.Task.Enabled != nil {
+		merged.Sweep.Task.Enabled = *project.Sweep.Task.Enabled
+	} else {
+		merged.Sweep.Task.Enabled = base.Sweep.Task.Enabled
+	}
+	merged.Sweep.Task.ExcludeAgents = unionStrings(
+		base.Sweep.Task.ExcludeAgents, project.Sweep.Task.ExcludeAgents)
 
 	return merged
 }

@@ -111,6 +111,44 @@ exclude_paths = [
 		}
 	})
 
+	t.Run("task config", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[sweep.task]
+enabled = true
+exclude_agents = ["my-special-agent", "another-agent"]
+`
+		os.WriteFile(path, []byte(content), 0o644)
+
+		cfg, err := LoadConfig(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !cfg.Sweep.Task.Enabled {
+			t.Error("Task Enabled should be true")
+		}
+		if len(cfg.Sweep.Task.ExcludeAgents) != 2 {
+			t.Errorf("ExcludeAgents len = %d, want 2", len(cfg.Sweep.Task.ExcludeAgents))
+		}
+	})
+
+	t.Run("task config enabled false", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		os.WriteFile(path, []byte("[sweep.task]\nenabled = false\n"), 0o644)
+
+		cfg, err := LoadConfig(path)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cfg.Sweep.Task.Enabled {
+			t.Error("Task Enabled should be false")
+		}
+	})
+
 	t.Run("invalid TOML returns error", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
@@ -234,6 +272,41 @@ func TestMergeRawConfigs(t *testing.T) {
 			t.Errorf("got %v, want %v", got.Sweep.Bash.ExcludeCommands, want)
 		}
 	})
+
+	t.Run("task Enabled overlay overrides base", func(t *testing.T) {
+		t.Parallel()
+		base := rawConfig{}
+		base.Sweep.Task.Enabled = boolPtr(true)
+		overlay := rawConfig{}
+		overlay.Sweep.Task.Enabled = boolPtr(false)
+		got := mergeRawConfigs(base, overlay)
+		if got.Sweep.Task.Enabled == nil || *got.Sweep.Task.Enabled {
+			t.Error("overlay Task Enabled=false should win")
+		}
+	})
+
+	t.Run("task Enabled nil preserves base", func(t *testing.T) {
+		t.Parallel()
+		base := rawConfig{}
+		base.Sweep.Task.Enabled = boolPtr(true)
+		got := mergeRawConfigs(base, rawConfig{})
+		if got.Sweep.Task.Enabled == nil || !*got.Sweep.Task.Enabled {
+			t.Error("base Task Enabled=true should be preserved")
+		}
+	})
+
+	t.Run("task ExcludeAgents union", func(t *testing.T) {
+		t.Parallel()
+		base := rawConfig{}
+		base.Sweep.Task.ExcludeAgents = []string{"agent-a", "agent-b"}
+		overlay := rawConfig{}
+		overlay.Sweep.Task.ExcludeAgents = []string{"agent-b", "agent-c"}
+		got := mergeRawConfigs(base, overlay)
+		want := []string{"agent-a", "agent-b", "agent-c"}
+		if !slices.Equal(got.Sweep.Task.ExcludeAgents, want) {
+			t.Errorf("got %v, want %v", got.Sweep.Task.ExcludeAgents, want)
+		}
+	})
 }
 
 func TestMergeConfig(t *testing.T) {
@@ -301,6 +374,35 @@ func TestMergeConfig(t *testing.T) {
 		wantEntries := []string{"entry1", "entry2"}
 		if !slices.Equal(got.Sweep.Bash.ExcludeEntries, wantEntries) {
 			t.Errorf("entries: got %v, want %v", got.Sweep.Bash.ExcludeEntries, wantEntries)
+		}
+	})
+
+	t.Run("task merge", func(t *testing.T) {
+		t.Parallel()
+		base := &Config{}
+		base.Sweep.Task.Enabled = true
+		base.Sweep.Task.ExcludeAgents = []string{"agent-a"}
+		project := rawConfig{}
+		project.Sweep.Task.ExcludeAgents = []string{"agent-a", "agent-b"}
+		got := MergeConfig(base, project, "/project")
+		if !got.Sweep.Task.Enabled {
+			t.Error("base Task Enabled=true should be preserved")
+		}
+		wantAgents := []string{"agent-a", "agent-b"}
+		if !slices.Equal(got.Sweep.Task.ExcludeAgents, wantAgents) {
+			t.Errorf("agents: got %v, want %v", got.Sweep.Task.ExcludeAgents, wantAgents)
+		}
+	})
+
+	t.Run("task project Enabled overrides base", func(t *testing.T) {
+		t.Parallel()
+		base := &Config{}
+		base.Sweep.Task.Enabled = true
+		project := rawConfig{}
+		project.Sweep.Task.Enabled = boolPtr(false)
+		got := MergeConfig(base, project, "/project")
+		if got.Sweep.Task.Enabled {
+			t.Error("project Task Enabled=false should override base")
 		}
 	})
 

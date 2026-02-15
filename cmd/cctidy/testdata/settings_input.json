@@ -27,6 +27,8 @@
       "Bash(git commit *)",
       "WebFetch(domain:github.com)",
       "Task(Explore)",
+      "Task(dead-custom-agent)",
+      "Task(plugin:my-agent)",
       "mcp__github__search_code",
       "Read(~/dead/config.json)",
       "Read(~/alive/notes.md)",

@@ -14,9 +14,12 @@ silently re-enable a previously blocked action.
 | Edit  | enabled  |
 | Write | enabled  |
 | Bash  | disabled |
+| Task  | disabled |
 
 Bash sweeping requires `--sweep-bash` flag or
-`enabled = true` in the config file. See
+`enabled = true` in the config file. Task sweeping
+requires `--sweep-task` flag or `enabled = true` in
+the config file. See
 [CLI Reference](cli.md#configuration-file) for config
 details.
 
@@ -123,3 +126,58 @@ The first match wins.
 
 For `exclude_paths`, trailing `/` is recommended to
 ensure directory boundary matching.
+
+## Task
+
+Enabled with `--sweep-task`.
+
+Task entries have the form `Task(AgentName)`.
+The sweeper checks whether the referenced agent still
+exists.
+
+### Always Kept
+
+The following entries are never swept:
+
+- **Built-in agents**: `Bash`, `Explore`, `Plan`,
+  `claude-code-guide`, `general-purpose`,
+  `statusline-setup`
+- **Plugin agents**: specifier contains `:` (e.g.
+  `plugin:my-agent`)
+- **Excluded agents**: listed in config
+  `exclude_agents`
+- **Existing agent files**: `.claude/agents/<name>.md`
+  found in either the home directory or the project
+  root
+- **No project context**: when `baseDir` is empty
+  (global settings without project root), entries are
+  kept conservatively
+
+### Sweep Logic
+
+An entry is swept when all of these are true:
+
+1. The agent is not built-in
+2. The agent is not excluded by config
+3. The specifier does not contain `:` (not a plugin)
+4. No `.md` file exists in home or project agents dir
+5. A project context (`baseDir`) is available
+
+### Examples
+
+| Entry                      | Result | Reason            |
+| -------------------------- | ------ | ----------------- |
+| `Task(Explore)`            | kept   | built-in agent    |
+| `Task(plugin:my-agent)`    | kept   | plugin agent      |
+| `Task(my-agent)` (.md exists) | kept | agent file found |
+| `Task(dead-agent)`         | swept  | agent not found   |
+| `Task(unknown)` (no baseDir) | kept | no project ctx  |
+
+### Exclude Patterns
+
+When a config file is provided, Task entries matching
+`exclude_agents` are always kept (never swept).
+
+| Type              | Match method | Example          |
+| ----------------- | ------------ | ---------------- |
+| `exclude_agents`  | Exact name   | `my-special-agent` |

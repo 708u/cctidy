@@ -11,73 +11,68 @@ import (
 func TestExtractToolEntry(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name          string
-		entry         string
-		wantTool      string
-		wantSpecifier string
+		name  string
+		entry string
+		want  ToolEntry
 	}{
 		{
-			name:          "Bash tool",
-			entry:         "Bash(git -C /repo status)",
-			wantTool:      "Bash",
-			wantSpecifier: "git -C /repo status",
+			name:  "Bash tool",
+			entry: "Bash(git -C /repo status)",
+			want:  StandardEntry{Tool: ToolBash, Specifier: "git -C /repo status"},
 		},
 		{
-			name:          "Write tool",
-			entry:         "Write(/some/path)",
-			wantTool:      "Write",
-			wantSpecifier: "/some/path",
+			name:  "Write tool",
+			entry: "Write(/some/path)",
+			want:  StandardEntry{Tool: ToolWrite, Specifier: "/some/path"},
 		},
 		{
-			name:          "Read tool",
-			entry:         "Read(/some/path)",
-			wantTool:      "Read",
-			wantSpecifier: "/some/path",
+			name:  "Read tool",
+			entry: "Read(/some/path)",
+			want:  StandardEntry{Tool: ToolRead, Specifier: "/some/path"},
 		},
 		{
-			name:          "mcp tool routed to ToolMCP",
-			entry:         "mcp__github__search_code(query)",
-			wantTool:      "mcp",
-			wantSpecifier: "mcp__github__search_code(query)",
+			name:  "mcp tool routed to MCPEntry",
+			entry: "mcp__github__search_code(query)",
+			want:  MCPEntry{ServerName: "github", RawEntry: "mcp__github__search_code(query)"},
 		},
 		{
-			name:          "bare mcp entry routed to ToolMCP",
-			entry:         "mcp__slack__post_message",
-			wantTool:      "mcp",
-			wantSpecifier: "mcp__slack__post_message",
+			name:  "bare mcp entry routed to MCPEntry",
+			entry: "mcp__slack__post_message",
+			want:  MCPEntry{ServerName: "slack", RawEntry: "mcp__slack__post_message"},
 		},
 		{
-			name:     "bare tool name without parens",
-			entry:    "Bash",
-			wantTool: "",
+			name:  "mcp plugin entry returns nil",
+			entry: "mcp__plugin_github_github__search_code",
+			want:  nil,
 		},
 		{
-			name:     "empty string",
-			entry:    "",
-			wantTool: "",
+			name:  "bare tool name without parens",
+			entry: "Bash",
+			want:  nil,
 		},
 		{
-			name:     "starts with number",
-			entry:    "1Tool(arg)",
-			wantTool: "",
+			name:  "empty string",
+			entry: "",
+			want:  nil,
 		},
 		{
-			name:          "WebFetch tool",
-			entry:         "WebFetch(domain:github.com)",
-			wantTool:      "WebFetch",
-			wantSpecifier: "domain:github.com",
+			name:  "starts with number",
+			entry: "1Tool(arg)",
+			want:  nil,
+		},
+		{
+			name:  "WebFetch tool",
+			entry: "WebFetch(domain:github.com)",
+			want:  StandardEntry{Tool: "WebFetch", Specifier: "domain:github.com"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotTool, gotSpec := extractToolEntry(tt.entry)
-			if gotTool != tt.wantTool {
-				t.Errorf("extractToolEntry(%q) tool = %q, want %q", tt.entry, gotTool, tt.wantTool)
-			}
-			if gotSpec != tt.wantSpecifier {
-				t.Errorf("extractToolEntry(%q) specifier = %q, want %q", tt.entry, gotSpec, tt.wantSpecifier)
+			got := extractToolEntry(tt.entry)
+			if got != tt.want {
+				t.Errorf("extractToolEntry(%q) = %v, want %v", tt.entry, got, tt.want)
 			}
 		})
 	}
@@ -375,7 +370,8 @@ func TestBashToolSweeperShouldSweep(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := tt.sweeper.ShouldSweep(t.Context(), tt.specifier)
+			entry := StandardEntry{Tool: ToolBash, Specifier: tt.specifier}
+			result := tt.sweeper.ShouldSweep(t.Context(), entry)
 			if result.Sweep != tt.wantSweep {
 				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
 			}
@@ -554,7 +550,8 @@ func TestBashToolSweeperWithExcluder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := tt.sweeper.ShouldSweep(t.Context(), tt.specifier)
+			entry := StandardEntry{Tool: ToolBash, Specifier: tt.specifier}
+			result := tt.sweeper.ShouldSweep(t.Context(), entry)
 			if result.Sweep != tt.wantSweep {
 				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
 			}
@@ -636,7 +633,8 @@ func TestReadEditToolSweeperShouldSweep(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := tt.sweeper.ShouldSweep(t.Context(), tt.specifier)
+			entry := StandardEntry{Tool: ToolRead, Specifier: tt.specifier}
+			result := tt.sweeper.ShouldSweep(t.Context(), entry)
 			if result.Sweep != tt.wantSweep {
 				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
 			}

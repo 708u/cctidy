@@ -295,55 +295,43 @@ func TestMCPToolSweeper(t *testing.T) {
 	tests := []struct {
 		name      string
 		sweeper   *MCPToolSweeper
-		toolName  string
+		entry     MCPEntry
 		wantSweep bool
 	}{
 		{
 			name:      "server exists - keep",
 			sweeper:   NewMCPToolSweeper(servers, noExclude),
-			toolName:  "mcp__slack__post_message",
+			entry:     MCPEntry{ServerName: "slack", RawEntry: "mcp__slack__post_message"},
 			wantSweep: false,
 		},
 		{
 			name:      "server missing - sweep",
 			sweeper:   NewMCPToolSweeper(servers, noExclude),
-			toolName:  "mcp__jira__create_issue",
+			entry:     MCPEntry{ServerName: "jira", RawEntry: "mcp__jira__create_issue"},
 			wantSweep: true,
 		},
 		{
 			name:      "bare server name exists - keep",
 			sweeper:   NewMCPToolSweeper(servers, noExclude),
-			toolName:  "mcp__github",
+			entry:     MCPEntry{ServerName: "github", RawEntry: "mcp__github"},
 			wantSweep: false,
 		},
 		{
 			name:      "bare server name missing - sweep",
 			sweeper:   NewMCPToolSweeper(servers, noExclude),
-			toolName:  "mcp__sentry",
+			entry:     MCPEntry{ServerName: "sentry", RawEntry: "mcp__sentry"},
 			wantSweep: true,
-		},
-		{
-			name:      "plugin entry - keep (not MCP)",
-			sweeper:   NewMCPToolSweeper(servers, noExclude),
-			toolName:  "mcp__plugin_github_github__search_code",
-			wantSweep: false,
-		},
-		{
-			name:      "non-MCP tool - keep",
-			sweeper:   NewMCPToolSweeper(servers, noExclude),
-			toolName:  "Read",
-			wantSweep: false,
 		},
 		{
 			name:      "excluded server missing - keep",
 			sweeper:   NewMCPToolSweeper(MCPServerSet{}, NewMCPExcluder([]string{"jira"})),
-			toolName:  "mcp__jira__create_issue",
+			entry:     MCPEntry{ServerName: "jira", RawEntry: "mcp__jira__create_issue"},
 			wantSweep: false,
 		},
 		{
 			name:      "empty server set sweeps unknown",
 			sweeper:   NewMCPToolSweeper(MCPServerSet{}, noExclude),
-			toolName:  "mcp__slack__post_message",
+			entry:     MCPEntry{ServerName: "slack", RawEntry: "mcp__slack__post_message"},
 			wantSweep: true,
 		},
 	}
@@ -351,9 +339,9 @@ func TestMCPToolSweeper(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result := tt.sweeper.ShouldSweep(t.Context(), tt.toolName)
+			result := tt.sweeper.ShouldSweep(t.Context(), tt.entry)
 			if result.Sweep != tt.wantSweep {
-				t.Errorf("ShouldSweepTool(%q) = %v, want %v", tt.toolName, result.Sweep, tt.wantSweep)
+				t.Errorf("ShouldSweep(%v) = %v, want %v", tt.entry, result.Sweep, tt.wantSweep)
 			}
 		})
 	}

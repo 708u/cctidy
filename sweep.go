@@ -22,22 +22,42 @@ var relPathRe = regexp.MustCompile(`(?:^|\s|=)(\.\./[A-Za-z0-9_./-]+|\./[A-Za-z0
 // and captures the tool name and specifier.
 var toolEntryRe = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9_]*)\((.*)\)$`)
 
-// extractToolEntry returns the tool name and specifier from a
-// permission entry.
-//
-// MCP entries (mcp__*) are routed to ToolMCP with the raw entry
-// as specifier, leaving parsing to the sweeper.
-// Standard entries use the Tool(specifier) syntax.
-// Returns ("", "") for unrecognized entries.
-func extractToolEntry(entry string) (toolName, specifier string) {
+// ToolEntry represents a parsed permission entry routed to a specific tool.
+type ToolEntry interface {
+	toolName() ToolName
+}
+
+// StandardEntry is a parsed Tool(specifier) permission entry.
+type StandardEntry struct {
+	Tool      ToolName
+	Specifier string
+}
+
+func (e StandardEntry) toolName() ToolName { return e.Tool }
+
+// MCPEntry is a parsed mcp__server__tool permission entry.
+type MCPEntry struct {
+	ServerName string
+	RawEntry   string
+}
+
+func (e MCPEntry) toolName() ToolName { return ToolMCP }
+
+// extractToolEntry parses a permission entry string into a ToolEntry.
+// Returns nil for unrecognized entries.
+func extractToolEntry(entry string) ToolEntry {
 	if strings.HasPrefix(entry, "mcp__") {
-		return string(ToolMCP), entry
+		serverName, ok := extractMCPServerName(entry)
+		if !ok {
+			return nil
+		}
+		return MCPEntry{ServerName: serverName, RawEntry: entry}
 	}
 	m := toolEntryRe.FindStringSubmatch(entry)
 	if m == nil {
-		return "", ""
+		return nil
 	}
-	return m[1], m[2]
+	return StandardEntry{Tool: ToolName(m[1]), Specifier: m[2]}
 }
 
 // ToolSweepResult holds the result of a single tool sweeper evaluation.
@@ -47,9 +67,28 @@ type ToolSweepResult struct {
 	Warn  string
 }
 
-// ToolSweeper decides whether a specifier for a specific tool should be swept.
+// ToolSweeper decides whether a permission entry should be swept.
 type ToolSweeper interface {
-	ShouldSweep(ctx context.Context, specifier string) ToolSweepResult
+	ShouldSweep(ctx context.Context, entry ToolEntry) ToolSweepResult
+}
+
+// typedSweeper is a generic adapter that dispatches to a concrete
+// ToolEntry type, returning a zero result for non-matching types.
+type typedSweeper[E ToolEntry] struct {
+	sweep func(context.Context, E) ToolSweepResult
+}
+
+func (s *typedSweeper[E]) ShouldSweep(ctx context.Context, entry ToolEntry) ToolSweepResult {
+	e, ok := entry.(E)
+	if !ok {
+		return ToolSweepResult{}
+	}
+	return s.sweep(ctx, e)
+}
+
+// NewToolSweeper wraps a concrete-typed sweep function as a ToolSweeper.
+func NewToolSweeper[E ToolEntry](fn func(context.Context, E) ToolSweepResult) ToolSweeper {
+	return &typedSweeper[E]{sweep: fn}
 }
 
 // ToolName identifies a Claude Code tool for permission matching.
@@ -83,7 +122,8 @@ func containsGlob(s string) bool {
 	return strings.ContainsAny(s, "*?[")
 }
 
-func (r *ReadEditToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
+func (r *ReadEditToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) ToolSweepResult {
+	specifier := entry.Specifier
 	if containsGlob(specifier) {
 		return ToolSweepResult{}
 	}
@@ -207,7 +247,8 @@ type BashToolSweeper struct {
 	excluder *BashExcluder
 }
 
-func (b *BashToolSweeper) ShouldSweep(ctx context.Context, specifier string) ToolSweepResult {
+func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) ToolSweepResult {
+	specifier := entry.Specifier
 	absPaths := extractAbsolutePaths(specifier)
 
 	if b.excluder.IsExcluded(specifier, absPaths) {
@@ -327,22 +368,26 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, opts ...SweepOpti
 	}
 
 	tools := map[ToolName]ToolSweeper{
-		ToolRead: re, ToolEdit: re, ToolWrite: re,
+		ToolRead:  NewToolSweeper(re.ShouldSweep),
+		ToolEdit:  NewToolSweeper(re.ShouldSweep),
+		ToolWrite: NewToolSweeper(re.ShouldSweep),
 	}
 	if cfg.bashSweep {
-		tools[ToolBash] = &BashToolSweeper{
+		bash := &BashToolSweeper{
 			checker:  checker,
 			homeDir:  homeDir,
 			baseDir:  cfg.baseDir,
 			excluder: NewBashExcluder(cfg.bashSweepCfg),
 		}
+		tools[ToolBash] = NewToolSweeper(bash.ShouldSweep)
 	}
 
 	if cfg.mcpSweepCfg != nil {
-		tools[ToolMCP] = NewMCPToolSweeper(
+		mcp := NewMCPToolSweeper(
 			cfg.mcpServers,
 			NewMCPExcluder(cfg.mcpSweepCfg.ExcludeServers),
 		)
+		tools[ToolMCP] = NewToolSweeper(mcp.ShouldSweep)
 	}
 
 	return &PermissionSweeper{tools: tools}
@@ -395,17 +440,17 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 }
 
 func (p *PermissionSweeper) shouldSweep(ctx context.Context, entry string, result *SweepResult) bool {
-	toolName, specifier := extractToolEntry(entry)
-	if toolName == "" {
+	te := extractToolEntry(entry)
+	if te == nil {
 		return false
 	}
 
-	sweeper, ok := p.tools[ToolName(toolName)]
+	sweeper, ok := p.tools[te.toolName()]
 	if !ok {
 		return false
 	}
 
-	r := sweeper.ShouldSweep(ctx, specifier)
+	r := sweeper.ShouldSweep(ctx, te)
 	if r.Warn != "" {
 		result.Warns = append(result.Warns, entry)
 		return false

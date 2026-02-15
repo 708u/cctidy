@@ -67,7 +67,12 @@ func TestSettingsGolden(t *testing.T) {
 		filepath.Join(baseDir, "src/alive.go"),
 		filepath.Join(baseDir, "../alive/output.txt"),
 	)
-	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, cctidy.WithBashSweep(cctidy.BashSweepConfig{}), cctidy.WithBaseDir(baseDir))
+	mcpServers := cctidy.MCPServerSet{"github": true}
+	sweeper := cctidy.NewPermissionSweeper(checker, homeDir,
+		cctidy.WithBashSweep(cctidy.BashSweepConfig{}),
+		cctidy.WithBaseDir(baseDir),
+		cctidy.WithMCPSweep(cctidy.MCPSweepConfig{}, mcpServers),
+	)
 	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
 	if err != nil {
 		t.Fatalf("format: %v", err)

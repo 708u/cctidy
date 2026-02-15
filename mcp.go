@@ -165,19 +165,13 @@ func NewMCPToolSweeper(servers MCPServerSet, excluder *MCPExcluder) *MCPToolSwee
 	return &MCPToolSweeper{servers: servers, excluder: excluder}
 }
 
-// ShouldSweep implements ToolSweeper. The specifier is the full
-// MCP tool name (e.g. "mcp__slack__post_message").
-// Returns Sweep=true when the server is not in the known set
-// and not excluded.
-func (m *MCPToolSweeper) ShouldSweep(_ context.Context, toolName string) ToolSweepResult {
-	serverName, ok := extractMCPServerName(toolName)
-	if !ok {
+// ShouldSweep evaluates an MCPEntry. Returns Sweep=true when the
+// server is not in the known set and not excluded.
+func (m *MCPToolSweeper) ShouldSweep(_ context.Context, entry MCPEntry) ToolSweepResult {
+	if m.excluder.IsExcluded(entry.ServerName) {
 		return ToolSweepResult{}
 	}
-	if m.excluder.IsExcluded(serverName) {
-		return ToolSweepResult{}
-	}
-	if m.servers[serverName] {
+	if m.servers[entry.ServerName] {
 		return ToolSweepResult{}
 	}
 	return ToolSweepResult{Sweep: true}

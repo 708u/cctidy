@@ -127,7 +127,9 @@
       "WebFetch(domain:github.com)",
       "Write",
       "Write(../alive/output.txt)",
-      "mcp__github__search_code"
+      "mcp__github__*",
+      "mcp__github__search_code",
+      "mcp__plugin_github_github__search_code"
     ],
     "ask": [
       "Bash(docker *)"

@@ -102,7 +102,7 @@ const (
 	ToolMCP   ToolName = "mcp"
 )
 
-// ReadEditToolSweeper sweeps Read/Edit/Write permission entries
+// ReadEditToolSweeper sweeps Read/Edit permission entries
 // that reference non-existent paths.
 //
 // Specifier resolution rules:
@@ -360,10 +360,9 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers MCPServer
 	mcp := NewMCPToolSweeper(servers)
 
 	tools := map[ToolName]ToolSweeper{
-		ToolRead:  NewToolSweeper(re.ShouldSweep),
-		ToolEdit:  NewToolSweeper(re.ShouldSweep),
-		ToolWrite: NewToolSweeper(re.ShouldSweep),
-		ToolMCP:   NewToolSweeper(mcp.ShouldSweep),
+		ToolRead: NewToolSweeper(re.ShouldSweep),
+		ToolEdit: NewToolSweeper(re.ShouldSweep),
+		ToolMCP:  NewToolSweeper(mcp.ShouldSweep),
 	}
 	if cfg.bashSweep {
 		bash := &BashToolSweeper{

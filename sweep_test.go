@@ -707,6 +707,17 @@ func TestSweepPermissions(t *testing.T) {
 			wantSweptAllow: 0,
 		},
 		{
+			name: "Write entries are never swept",
+			entries: []any{
+				"Write(//dead/path)",
+				"Write(~/dead/notes.md)",
+			},
+			checker:        testutil.NoPathsExist{},
+			homeDir:        "/home/user",
+			wantAllowLen:   2,
+			wantSweptAllow: 0,
+		},
+		{
 			name: "unregistered tool entries are kept",
 			entries: []any{
 				"Bash(git -C /dead/path status)",

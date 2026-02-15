@@ -39,9 +39,3 @@ Two mechanisms:
 
 Config `enabled = true` always promotes to safe tier,
 regardless of --unsafe flag.
-
-## Phase 2 (Future)
-
-- Duplicate permission detection (safe tier)
-- Bare tool name inclusion (safe tier)
-- `extend_safe` / `extend_unsafe` config arrays

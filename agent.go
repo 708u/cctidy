@@ -4,18 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/708u/cctidy/internal/md"
 	"github.com/708u/cctidy/internal/set"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/text"
-	meta "go.abhg.dev/goldmark/frontmatter"
 )
-
-// fmParser is a reusable goldmark parser with frontmatter support.
-var fmParser = goldmark.New(
-	goldmark.WithExtensions(
-		&meta.Extender{Mode: meta.SetMetadata},
-	),
-).Parser()
 
 // LoadAgentNames scans the agents directory and returns
 // a set of agent names extracted from frontmatter.
@@ -43,28 +34,9 @@ func LoadAgentNames(dir string) set.Value[string] {
 		if err != nil {
 			continue
 		}
-		if fmName := parseAgentName(data); fmName != "" {
-			s.Add(fmName)
+		if name := md.ParseName(data); name != "" {
+			s.Add(name)
 		}
-	}
-	return s
-}
-
-// parseAgentName extracts the name field from YAML
-// frontmatter in data. Returns "" if not found.
-func parseAgentName(data []byte) string {
-	doc := fmParser.Parse(text.NewReader(data))
-	m := doc.OwnerDocument().Meta()
-	if m == nil {
-		return ""
-	}
-	v, ok := m["name"]
-	if !ok {
-		return ""
-	}
-	s, ok := v.(string)
-	if !ok {
-		return ""
 	}
 	return s
 }

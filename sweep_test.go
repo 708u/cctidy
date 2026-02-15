@@ -1018,6 +1018,107 @@ func TestSweepPermissions(t *testing.T) {
 		}
 	})
 
+	t.Run("skill entries swept when skill dead", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		skillsDir := filepath.Join(claudeDir, "skills", "alive-skill")
+		os.MkdirAll(skillsDir, 0o755)
+		os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Alive"), 0o644)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Skill(dead-skill)",
+					"Skill(alive-skill)",
+					"Read",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("skill entry kept when command file exists", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		commandsDir := filepath.Join(claudeDir, "commands")
+		os.MkdirAll(commandsDir, 0o755)
+		os.WriteFile(filepath.Join(commandsDir, "alive-cmd.md"), []byte("# Cmd"), 0o644)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Skill(alive-cmd)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("skill plugin entry always kept", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Skill(plugin:skill-name)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("plugin skill entry should be kept, got %v", allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("skill prefix match handled", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		skillsDir := filepath.Join(claudeDir, "skills", "review")
+		os.MkdirAll(skillsDir, 0o755)
+		os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Review"), 0o644)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Skill(review *)",
+					"Skill(dead-skill *)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
 	t.Run("bash entries with relative path kept when no baseDir", func(t *testing.T) {
 		t.Parallel()
 		obj := map[string]any{

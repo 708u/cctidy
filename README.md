@@ -50,13 +50,14 @@ sweeping.
 
 ### Supported Tools
 
-| Tool  | Default  | Detection              |
-| ----- | -------- | ---------------------- |
-| Read  | enabled  | Path existence         |
-| Edit  | enabled  | Path existence         |
-| Bash  | disabled | All extracted paths    |
-| Task  | enabled  | Agent existence        |
-| MCP   | enabled  | Server registration    |
+| Tool  | Default  | Detection               |
+| ----- | -------- | ----------------------- |
+| Read  | enabled  | Path existence          |
+| Edit  | enabled  | Path existence          |
+| Bash  | disabled | All extracted paths     |
+| Task  | enabled  | Agent existence         |
+| Skill | enabled  | Skill/command existence |
+| MCP   | enabled  | Server registration     |
 
 Entries for tools not listed above (e.g. `Write`,
 `Grep`, `WebFetch`) are kept unchanged. Write is

@@ -47,7 +47,13 @@
       "Bash(git -C /alive/repo pull)",
       "Bash(./bin/run --project)",
       "Bash(../scripts/deploy.sh)",
-      "Bash(cat ~/config.json)"
+      "Bash(cat ~/config.json)",
+      "Skill(stub-skill)",
+      "Skill(stub-cmd)",
+      "Skill(dead-skill)",
+      "Skill(plugin:my-skill)",
+      "Skill(stub-skill *)",
+      "Skill(dead-skill *)"
     ]
   },
   "sandbox": {

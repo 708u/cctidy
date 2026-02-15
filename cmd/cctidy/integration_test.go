@@ -64,6 +64,14 @@ func TestSettingsGolden(t *testing.T) {
 	agentsDir := filepath.Join(baseDir, ".claude", "agents")
 	os.MkdirAll(agentsDir, 0o755)
 	os.WriteFile(filepath.Join(agentsDir, "stub.md"), []byte("---\nname: stub\n---\n# Stub"), 0o644)
+	// Create a skills directory with a stub skill and a commands
+	// directory with a stub command so the skill set is non-empty.
+	skillsDir := filepath.Join(baseDir, ".claude", "skills", "stub-skill")
+	os.MkdirAll(skillsDir, 0o755)
+	os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Stub Skill"), 0o644)
+	commandsDir := filepath.Join(baseDir, ".claude", "commands")
+	os.MkdirAll(commandsDir, 0o755)
+	os.WriteFile(filepath.Join(commandsDir, "stub-cmd.md"), []byte("# Stub Command"), 0o644)
 	checker := testutil.CheckerFor(
 		"/alive/repo",
 		"/alive/data/file.txt",
@@ -1985,4 +1993,198 @@ func TestIntegrationMCPSweep(t *testing.T) {
 		}
 	})
 
+}
+
+func TestIntegrationSkillSweepProjectLevel(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create project structure: dir/project/.claude/settings.json
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+
+	// Create a skill with SKILL.md
+	skillsDir := filepath.Join(claudeDir, "skills", "alive-skill")
+	os.MkdirAll(skillsDir, 0o755)
+	os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Alive"), 0o644)
+
+	// Create a skill with frontmatter name different from dir name
+	fmSkillDir := filepath.Join(claudeDir, "skills", "dir-name")
+	os.MkdirAll(fmSkillDir, 0o755)
+	os.WriteFile(filepath.Join(fmSkillDir, "SKILL.md"),
+		[]byte("---\nname: frontmatter-skill\n---\n# Skill"), 0o644)
+
+	// Create a command .md file
+	commandsDir := filepath.Join(claudeDir, "commands")
+	os.MkdirAll(commandsDir, 0o755)
+	os.WriteFile(filepath.Join(commandsDir, "alive-cmd.md"), []byte("# Command"), 0o644)
+
+	// Create a command with frontmatter name different from filename
+	os.WriteFile(filepath.Join(commandsDir, "file-name.md"),
+		[]byte("---\nname: fm-cmd\n---\n# Command"), 0o644)
+
+	// Create a home-level skill (not in project)
+	homeSkillDir := filepath.Join(dir, ".claude", "skills", "home-skill")
+	os.MkdirAll(homeSkillDir, 0o755)
+	os.WriteFile(filepath.Join(homeSkillDir, "SKILL.md"), []byte("# Home Skill"), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Skill(alive-skill)",
+      "Skill(dead-skill)",
+      "Skill(frontmatter-skill)",
+      "Skill(dir-name)",
+      "Skill(alive-cmd)",
+      "Skill(fm-cmd)",
+      "Skill(file-name)",
+      "Skill(home-skill)",
+      "Skill(plugin:my-skill)",
+      "Skill(alive-skill *)",
+      "Skill(dead-skill *)",
+      "Read"
+    ],
+    "deny": [
+      "Skill(denied-dead-skill)"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// alive skill should be kept
+	if !strings.Contains(got, `"Skill(alive-skill)"`) {
+		t.Error("alive Skill(alive-skill) was removed")
+	}
+	// dead skill should be swept
+	if strings.Contains(got, `"Skill(dead-skill)"`) {
+		t.Error("dead Skill(dead-skill) was not swept")
+	}
+	// frontmatter name should be kept
+	if !strings.Contains(got, `"Skill(frontmatter-skill)"`) {
+		t.Error("frontmatter Skill(frontmatter-skill) was removed")
+	}
+	// dir name should be swept (frontmatter overrides)
+	if strings.Contains(got, `"Skill(dir-name)"`) {
+		t.Error("Skill(dir-name) should be swept when frontmatter name differs")
+	}
+	// alive command should be kept
+	if !strings.Contains(got, `"Skill(alive-cmd)"`) {
+		t.Error("alive Skill(alive-cmd) was removed")
+	}
+	// command frontmatter name should be kept
+	if !strings.Contains(got, `"Skill(fm-cmd)"`) {
+		t.Error("frontmatter Skill(fm-cmd) was removed")
+	}
+	// command filename should be swept (frontmatter overrides)
+	if strings.Contains(got, `"Skill(file-name)"`) {
+		t.Error("Skill(file-name) should be swept when frontmatter name differs")
+	}
+	// home-only skill should be swept in project-level settings
+	if strings.Contains(got, `"Skill(home-skill)"`) {
+		t.Error("home-only Skill(home-skill) was not swept from project settings")
+	}
+	// plugin skill should be kept
+	if !strings.Contains(got, `"Skill(plugin:my-skill)"`) {
+		t.Error("plugin Skill(plugin:my-skill) was removed")
+	}
+	// prefix match with alive skill should be kept
+	if !strings.Contains(got, `"Skill(alive-skill *)"`) {
+		t.Error("alive Skill(alive-skill *) was removed")
+	}
+	// prefix match with dead skill should be swept
+	if strings.Contains(got, `"Skill(dead-skill *)"`) {
+		t.Error("dead Skill(dead-skill *) was not swept")
+	}
+	// non-Skill entry should be kept
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-Skill entry was removed")
+	}
+	// deny entry should never be swept
+	if !strings.Contains(got, `"Skill(denied-dead-skill)"`) {
+		t.Error("deny Skill entry was incorrectly swept")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Swept:") {
+		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationSkillSweepUserLevel(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create home skills and commands directories
+	homeSkillDir := filepath.Join(dir, ".claude", "skills", "home-skill")
+	os.MkdirAll(homeSkillDir, 0o755)
+	os.WriteFile(filepath.Join(homeSkillDir, "SKILL.md"), []byte("# Home Skill"), 0o644)
+
+	homeCommandsDir := filepath.Join(dir, ".claude", "commands")
+	os.MkdirAll(homeCommandsDir, 0o755)
+	os.WriteFile(filepath.Join(homeCommandsDir, "home-cmd.md"), []byte("# Home Cmd"), 0o644)
+
+	// Create a skill with frontmatter name different from dir name
+	fmSkillDir := filepath.Join(dir, ".claude", "skills", "fm-dir")
+	os.MkdirAll(fmSkillDir, 0o755)
+	os.WriteFile(filepath.Join(fmSkillDir, "SKILL.md"),
+		[]byte("---\nname: home-fm-skill\n---\n# Skill"), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Skill(home-skill)",
+      "Skill(home-cmd)",
+      "Skill(dead-skill)",
+      "Skill(plugin:my-skill)",
+      "Skill(home-fm-skill)",
+      "Skill(fm-dir)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, ".claude", "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// home skill should be kept
+	if !strings.Contains(got, `"Skill(home-skill)"`) {
+		t.Error("alive Skill(home-skill) was removed from user settings")
+	}
+	// home command should be kept
+	if !strings.Contains(got, `"Skill(home-cmd)"`) {
+		t.Error("alive Skill(home-cmd) was removed from user settings")
+	}
+	// dead skill should be swept
+	if strings.Contains(got, `"Skill(dead-skill)"`) {
+		t.Error("dead Skill(dead-skill) was not swept from user settings")
+	}
+	// plugin skill should be kept
+	if !strings.Contains(got, `"Skill(plugin:my-skill)"`) {
+		t.Error("plugin Skill(plugin:my-skill) was removed from user settings")
+	}
+	// frontmatter name skill should be kept
+	if !strings.Contains(got, `"Skill(home-fm-skill)"`) {
+		t.Error("frontmatter Skill(home-fm-skill) was removed from user settings")
+	}
+	// dir name should be swept (frontmatter overrides)
+	if strings.Contains(got, `"Skill(fm-dir)"`) {
+		t.Error("Skill(fm-dir) should be swept from user settings")
+	}
 }

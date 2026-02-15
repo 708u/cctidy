@@ -102,6 +102,7 @@ const (
 	ToolWrite ToolName = "Write"
 	ToolBash  ToolName = "Bash"
 	ToolTask  ToolName = "Task"
+	ToolSkill ToolName = "Skill"
 	ToolMCP   ToolName = "mcp"
 )
 
@@ -300,7 +301,7 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 // TaskToolSweeper sweeps Task permission entries where the
 // referenced agent no longer exists. Built-in agents, plugin
 // agents (containing ":"), and agents whose name appears in
-// the AgentNameSet are always kept.
+// the agent name set are always kept.
 type TaskToolSweeper struct {
 	agents set.Value[string]
 }
@@ -399,19 +400,26 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value
 
 	mcp := NewMCPToolSweeper(servers)
 
-	var agentsDir string
+	var claudeDir string
 	if cfg.baseDir != "" {
-		agentsDir = filepath.Join(cfg.baseDir, ".claude", "agents")
+		claudeDir = filepath.Join(cfg.baseDir, ".claude")
 	} else if homeDir != "" {
-		agentsDir = filepath.Join(homeDir, ".claude", "agents")
+		claudeDir = filepath.Join(homeDir, ".claude")
+	}
+
+	var agentsDir string
+	if claudeDir != "" {
+		agentsDir = filepath.Join(claudeDir, "agents")
 	}
 	task := NewTaskToolSweeper(LoadAgentNames(agentsDir))
+	skill := NewSkillToolSweeper(LoadSkillNames(claudeDir))
 
 	tools := map[ToolName]ToolSweeper{
-		ToolRead: NewToolSweeper(re.ShouldSweep),
-		ToolEdit: NewToolSweeper(re.ShouldSweep),
-		ToolMCP:  NewToolSweeper(mcp.ShouldSweep),
-		ToolTask: NewToolSweeper(task.ShouldSweep),
+		ToolRead:  NewToolSweeper(re.ShouldSweep),
+		ToolEdit:  NewToolSweeper(re.ShouldSweep),
+		ToolMCP:   NewToolSweeper(mcp.ShouldSweep),
+		ToolTask:  NewToolSweeper(task.ShouldSweep),
+		ToolSkill: NewToolSweeper(skill.ShouldSweep),
 	}
 	if cfg.bashSweep {
 		bash := &BashToolSweeper{

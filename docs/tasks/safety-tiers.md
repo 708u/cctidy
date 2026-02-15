@@ -1,4 +1,4 @@
-# CLI Warning Design: Safety Tiers
+# Safety Tiers
 
 ## Overview
 

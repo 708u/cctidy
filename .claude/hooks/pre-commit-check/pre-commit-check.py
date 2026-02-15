@@ -47,7 +47,7 @@ CHECKS = {
     "docs": {
         "when": "When reference docs (docs/reference/**) are modified",
         "commands": [
-            "Bump version in external/claude-code/plugins/cctidy/.claude-plugin/plugin.json",
+            "Bump plugin.json version only if hook trigger or command changed (not for doc-only updates)",
         ],
     },
 }

@@ -136,7 +136,7 @@ Task entries have the form `Task(AgentName)`.
 The sweeper checks whether the referenced agent still
 exists.
 
-### Always Kept
+### Task Always Kept
 
 The following entries are never swept:
 
@@ -162,7 +162,7 @@ name: custom-name
 
 Files without a valid `name` field are skipped.
 
-### Sweep Logic
+### Task Sweep Logic
 
 Agent lookup is scoped to the settings level:
 
@@ -201,7 +201,7 @@ Both `.claude/skills/<name>/SKILL.md` and
 `.claude/commands/<name>.md` create the same `/name`
 command. The sweeper checks both directories.
 
-### Always Kept
+### Skill Always Kept
 
 The following entries are never swept:
 

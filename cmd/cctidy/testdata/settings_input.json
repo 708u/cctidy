@@ -52,7 +52,8 @@
       "Skill(stub-cmd)",
       "Skill(dead-skill)",
       "Skill(plugin:my-skill)",
-      "Skill(stub-skill *)"
+      "Skill(stub-skill *)",
+      "Skill(dead-skill *)"
     ]
   },
   "sandbox": {

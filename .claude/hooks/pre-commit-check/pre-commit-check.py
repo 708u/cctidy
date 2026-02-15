@@ -50,6 +50,12 @@ CHECKS = {
             "Bump plugin.json version only if hook trigger or command changed (not for doc-only updates)",
         ],
     },
+    "general": {
+        "when": "All changes",
+        "commands": [
+            "Ensure all code and docs are written in English",
+        ],
+    },
 }
 
 # State directory (relative to this script)

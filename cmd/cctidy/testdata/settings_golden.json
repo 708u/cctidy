@@ -127,12 +127,14 @@
       "WebFetch(domain:github.com)",
       "Write",
       "Write(../alive/output.txt)",
+      "Write(../dead.go)",
       "mcp__github__*",
       "mcp__github__search_code",
       "mcp__plugin_github_github__search_code"
     ],
     "ask": [
-      "Bash(docker *)"
+      "Bash(docker *)",
+      "Write(~/dead/notes.md)"
     ],
     "deny": [
       "Bash(rm -rf *)",

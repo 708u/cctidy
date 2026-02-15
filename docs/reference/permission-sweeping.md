@@ -12,7 +12,6 @@ silently re-enable a previously blocked action.
 | ----- | -------- |
 | Read  | enabled  |
 | Edit  | enabled  |
-| Write | enabled  |
 | Bash  | disabled |
 | MCP   | enabled  |
 
@@ -21,10 +20,12 @@ Bash sweeping requires `--sweep-bash` flag or
 See [CLI Reference](cli.md#configuration-file)
 for config details.
 
-Entries for tools not listed above (e.g. `WebFetch`,
-`Grep`) are kept unchanged.
+Entries for tools not listed above (e.g. `Write`,
+`WebFetch`, `Grep`) are kept unchanged. Write entries
+are excluded because the tool creates new files, so
+the target path not existing is expected.
 
-## Read / Edit / Write
+## Read / Edit
 
 Each entry has the form `Tool(specifier)`.
 The specifier is resolved to an absolute path and checked

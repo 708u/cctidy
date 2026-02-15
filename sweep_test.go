@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/708u/cctidy/internal/set"
 	"github.com/708u/cctidy/internal/testutil"
 )
 
@@ -562,9 +563,9 @@ func TestBashToolSweeperWithExcluder(t *testing.T) {
 func TestTaskToolSweeperShouldSweep(t *testing.T) {
 	t.Parallel()
 
-	agentsWithMyAgent := AgentNameSet{"my-agent": true}
-	agentsWithProjAgent := AgentNameSet{"proj-agent": true}
-	emptyAgents := AgentNameSet{}
+	agentsWithMyAgent := set.New("my-agent")
+	agentsWithProjAgent := set.New("proj-agent")
+	emptyAgents := set.New[string]()
 
 	tests := []struct {
 		name      string
@@ -610,13 +611,13 @@ func TestTaskToolSweeperShouldSweep(t *testing.T) {
 		},
 		{
 			name:      "dead agent is swept when agents set non-empty",
-			sweeper:   NewTaskToolSweeper(AgentNameSet{"other-agent": true}),
+			sweeper:   NewTaskToolSweeper(set.New("other-agent")),
 			specifier: "dead-agent",
 			wantSweep: true,
 		},
 		{
 			name:      "frontmatter name is kept",
-			sweeper:   NewTaskToolSweeper(AgentNameSet{"custom-name": true}),
+			sweeper:   NewTaskToolSweeper(set.New("custom-name")),
 			specifier: "custom-name",
 			wantSweep: false,
 		},
@@ -1060,7 +1061,7 @@ func TestSweepPermissions(t *testing.T) {
 
 	t.Run("MCP bare entry swept when server missing", func(t *testing.T) {
 		t.Parallel()
-		servers := MCPServerSet{"slack": true}
+		servers := set.New("slack")
 		obj := map[string]any{
 			"permissions": map[string]any{
 				"allow": []any{
@@ -1082,7 +1083,7 @@ func TestSweepPermissions(t *testing.T) {
 
 	t.Run("MCP bare entry kept when server exists", func(t *testing.T) {
 		t.Parallel()
-		servers := MCPServerSet{"slack": true}
+		servers := set.New("slack")
 		obj := map[string]any{
 			"permissions": map[string]any{
 				"allow": []any{"mcp__slack__post_message"},
@@ -1100,7 +1101,7 @@ func TestSweepPermissions(t *testing.T) {
 
 	t.Run("MCP entry with parens swept when server missing", func(t *testing.T) {
 		t.Parallel()
-		servers := MCPServerSet{"slack": true}
+		servers := set.New("slack")
 		obj := map[string]any{
 			"permissions": map[string]any{
 				"allow": []any{"mcp__jira__create_issue(query)"},
@@ -1118,7 +1119,7 @@ func TestSweepPermissions(t *testing.T) {
 
 	t.Run("MCP plugin entry kept", func(t *testing.T) {
 		t.Parallel()
-		servers := MCPServerSet{}
+		servers := set.New[string]()
 		obj := map[string]any{
 			"permissions": map[string]any{
 				"allow": []any{"mcp__plugin_github_github__search_code"},
@@ -1136,7 +1137,7 @@ func TestSweepPermissions(t *testing.T) {
 
 	t.Run("MCP in ask category swept", func(t *testing.T) {
 		t.Parallel()
-		servers := MCPServerSet{"slack": true}
+		servers := set.New("slack")
 		obj := map[string]any{
 			"permissions": map[string]any{
 				"ask": []any{"mcp__jira__create_issue"},

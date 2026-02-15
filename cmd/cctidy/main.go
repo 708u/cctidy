@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/708u/cctidy"
+	"github.com/708u/cctidy/internal/set"
 	"github.com/alecthomas/kong"
 )
 
@@ -251,10 +252,10 @@ func (c *CLI) loadMCPServers() *cctidy.MCPServerSets {
 	return servers
 }
 
-// mcpServersForTarget returns the appropriate MCPServerSet for the
+// mcpServersForTarget returns the appropriate server set for the
 // given target path. User-scope paths (~/.claude/) get User set;
 // everything else gets Project set.
-func (c *CLI) mcpServersForTarget(servers *cctidy.MCPServerSets, target string) cctidy.MCPServerSet {
+func (c *CLI) mcpServersForTarget(servers *cctidy.MCPServerSets, target string) set.Value[string] {
 	claudeDir := filepath.Join(c.homeDir, ".claude")
 	rel, err := filepath.Rel(claudeDir, target)
 	if err == nil && filepath.IsLocal(rel) {

@@ -1,27 +1,30 @@
 package testutil
 
-import "context"
+import (
+	"context"
 
-// PathSet は指定パスの存在チェックを map で模倣する。
-type PathSet map[string]bool
+	"github.com/708u/cctidy/internal/set"
+)
 
-func (s PathSet) Exists(_ context.Context, p string) bool { return s[p] }
-
-// CheckerFor は指定パスが存在する PathSet を返す。
-func CheckerFor(paths ...string) PathSet {
-	s := make(PathSet, len(paths))
-	for _, p := range paths {
-		s[p] = true
-	}
-	return s
+// PathSet wraps a set.Value[string] and implements PathChecker.
+type PathSet struct {
+	s set.Value[string]
 }
 
-// AllPathsExist は全パスを存在扱いにする PathChecker スタブ。
+// Exists reports whether p is in the set.
+func (ps PathSet) Exists(_ context.Context, p string) bool { return ps.s.Has(p) }
+
+// CheckerFor returns a PathSet containing the given paths.
+func CheckerFor(paths ...string) PathSet {
+	return PathSet{s: set.New(paths...)}
+}
+
+// AllPathsExist is a PathChecker stub that reports all paths as existing.
 type AllPathsExist struct{}
 
 func (AllPathsExist) Exists(context.Context, string) bool { return true }
 
-// NoPathsExist は全パスを不在扱いにする PathChecker スタブ。
+// NoPathsExist is a PathChecker stub that reports all paths as non-existent.
 type NoPathsExist struct{}
 
 func (NoPathsExist) Exists(context.Context, string) bool { return false }

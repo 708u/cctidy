@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-)
 
-// MCPServerSet is a set of known MCP server names.
-type MCPServerSet map[string]bool
+	"github.com/708u/cctidy/internal/set"
+)
 
 // extractMCPServerName extracts the server name from an MCP tool name.
 // Returns ("", false) for non-MCP tool names or plugin entries (mcp__plugin_*).
@@ -41,20 +40,20 @@ func extractMCPServerName(toolName string) (string, bool) {
 // Use ForUserScope or ForProjectScope to get the appropriate
 // set for a given settings file scope.
 type MCPServerSets struct {
-	mcpJSON    MCPServerSet // from .mcp.json
-	claudeJSON MCPServerSet // from ~/.claude.json
+	mcpJSON    set.Value[string] // from .mcp.json
+	claudeJSON set.Value[string] // from ~/.claude.json
 }
 
 // ForUserScope returns servers available in user scope
 // (~/.claude/settings.json, ~/.claude/settings.local.json).
 // This includes only ~/.claude.json servers, not .mcp.json.
-func (s *MCPServerSets) ForUserScope() MCPServerSet {
-	if s == nil || len(s.claudeJSON) == 0 {
-		return MCPServerSet{}
+func (s *MCPServerSets) ForUserScope() set.Value[string] {
+	if s == nil || s.claudeJSON.Len() == 0 {
+		return set.New[string]()
 	}
-	result := make(MCPServerSet, len(s.claudeJSON))
+	result := make(set.Value[string], s.claudeJSON.Len())
 	for k := range s.claudeJSON {
-		result[k] = true
+		result.Add(k)
 	}
 	return result
 }
@@ -62,16 +61,16 @@ func (s *MCPServerSets) ForUserScope() MCPServerSet {
 // ForProjectScope returns servers available in project scope
 // (.claude/settings.json, .claude/settings.local.json).
 // This includes both .mcp.json and ~/.claude.json servers.
-func (s *MCPServerSets) ForProjectScope() MCPServerSet {
+func (s *MCPServerSets) ForProjectScope() set.Value[string] {
 	if s == nil {
-		return MCPServerSet{}
+		return set.New[string]()
 	}
-	result := make(MCPServerSet, len(s.mcpJSON)+len(s.claudeJSON))
+	result := make(set.Value[string], s.mcpJSON.Len()+s.claudeJSON.Len())
 	for k := range s.claudeJSON {
-		result[k] = true
+		result.Add(k)
 	}
 	for k := range s.mcpJSON {
-		result[k] = true
+		result.Add(k)
 	}
 	return result
 }
@@ -80,8 +79,8 @@ func (s *MCPServerSets) ForProjectScope() MCPServerSet {
 // and ~/.claude.json. Missing files are silently ignored.
 // JSON parse errors are returned.
 func LoadMCPServers(mcpJSONPath, claudeJSONPath string) (*MCPServerSets, error) {
-	mcpServers := make(MCPServerSet)
-	claudeServers := make(MCPServerSet)
+	mcpServers := set.New[string]()
+	claudeServers := set.New[string]()
 
 	if err := loadMCPServersFromMCPJSON(mcpJSONPath, mcpServers); err != nil {
 		return nil, err
@@ -95,19 +94,19 @@ func LoadMCPServers(mcpJSONPath, claudeJSONPath string) (*MCPServerSets, error) 
 
 // collectServerNames unmarshals raw as a JSON object and adds
 // its keys to servers.
-func collectServerNames(raw json.RawMessage, servers MCPServerSet) {
+func collectServerNames(raw json.RawMessage, servers set.Value[string]) {
 	var names map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &names); err != nil {
 		return
 	}
 	for name := range names {
-		servers[name] = true
+		servers.Add(name)
 	}
 }
 
 // loadMCPServersFromMCPJSON reads .mcp.json and extracts server names
 // from the "mcpServers" key.
-func loadMCPServersFromMCPJSON(path string, servers MCPServerSet) error {
+func loadMCPServersFromMCPJSON(path string, servers set.Value[string]) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -130,7 +129,7 @@ func loadMCPServersFromMCPJSON(path string, servers MCPServerSet) error {
 // loadMCPServersFromClaudeJSON reads ~/.claude.json and extracts server
 // names from the top-level "mcpServers" key and from
 // "projects" → each project → "mcpServers".
-func loadMCPServersFromClaudeJSON(path string, servers MCPServerSet) error {
+func loadMCPServersFromClaudeJSON(path string, servers set.Value[string]) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -174,18 +173,18 @@ func loadMCPServersFromClaudeJSON(path string, servers MCPServerSet) error {
 // MCPToolSweeper sweeps MCP tool permission entries whose server
 // is no longer present in the known server set.
 type MCPToolSweeper struct {
-	servers MCPServerSet
+	servers set.Value[string]
 }
 
 // NewMCPToolSweeper creates an MCPToolSweeper.
-func NewMCPToolSweeper(servers MCPServerSet) *MCPToolSweeper {
+func NewMCPToolSweeper(servers set.Value[string]) *MCPToolSweeper {
 	return &MCPToolSweeper{servers: servers}
 }
 
 // ShouldSweep evaluates an MCPEntry. Returns Sweep=true when the
 // server is not in the known set.
 func (m *MCPToolSweeper) ShouldSweep(_ context.Context, entry MCPEntry) ToolSweepResult {
-	if m.servers[entry.ServerName] {
+	if m.servers.Has(entry.ServerName) {
 		return ToolSweepResult{}
 	}
 	return ToolSweepResult{Sweep: true}

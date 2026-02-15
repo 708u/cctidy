@@ -48,6 +48,21 @@ sweeping.
 > `mkdir`, `touch`), so automatic sweeping could remove
 > intentional permissions.
 
+### Supported Tools
+
+| Tool  | Default  | Detection              |
+| ----- | -------- | ---------------------- |
+| Read  | enabled  | Path existence         |
+| Edit  | enabled  | Path existence         |
+| Bash  | disabled | All extracted paths    |
+| Task  | enabled  | Agent existence        |
+| MCP   | enabled  | Server registration    |
+
+Entries for tools not listed above (e.g. `Write`,
+`Grep`, `WebFetch`) are kept unchanged. Write is
+excluded because it creates new files, so the target
+path not existing is expected.
+
 ## Installation
 
 ### Homebrew
@@ -108,11 +123,23 @@ cctidy --sweep-bash
 | `--dry-run`           |       | Show changes without writing      |
 | `--check`             |       | Exit with 1 if any file is dirty  |
 | `--sweep-bash`        |       | Include Bash entries in sweeping  |
+| `--config`            |       | Path to config file               |
 | `--verbose`           | `-v`  | Show formatting details           |
 | `--version`           |       | Print version                     |
 
 Details:
 [docs/reference/cli.md](docs/reference/cli.md)
+
+## Exit Codes
+
+| Code | Meaning                           |
+| ---- | --------------------------------- |
+| 0    | Success                           |
+| 1    | `--check`: dirty files detected   |
+| 2    | Invalid flags or runtime error    |
+
+`--check` cannot be combined with `--backup` or
+`--dry-run`. Using them together exits with code 2.
 
 ## Configuration
 
@@ -134,6 +161,7 @@ working directory.
 # ~/.config/cctidy/config.toml or .claude/cctidy.toml
 [sweep.bash]
 enabled = true
+exclude_entries = ["mkdir -p /opt/logs"]
 exclude_commands = ["mkdir", "touch"]
 exclude_paths = ["vendor/"]
 ```
@@ -163,6 +191,13 @@ Details:
 Details:
 [docs/reference/formatting.md](docs/reference/formatting.md),
 [docs/reference/permission-sweeping.md](docs/reference/permission-sweeping.md)
+
+## File Safety
+
+- **Atomic write**: Uses temp file + rename to
+  prevent partial writes on crash or interrupt.
+- **Symlink**: Resolves symlinks before writing so
+  the actual target file is updated.
 
 ## Claude Code Plugin
 

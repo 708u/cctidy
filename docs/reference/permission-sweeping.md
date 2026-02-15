@@ -26,20 +26,32 @@ for config details.
 
 ### Not Swept
 
-| Tool      | Reason                                  |
-| --------- | --------------------------------------- |
-| Write     | Creates files; absent path is normal    |
-| Grep      | Specifier is a search pattern, not path |
-| Glob      | Specifier is a glob pattern, not path   |
-| WebFetch  | Specifier is a URL or domain            |
-| WebSearch | Specifier is a search query             |
+| Tool      | Reason                              |
+| --------- | ----------------------------------- |
+| Write     | Target path is not yet created      |
+| Grep      | No staleness criteria for patterns  |
+| Glob      | Current match set may be transient  |
+| WebFetch  | URL reachability is not reliable    |
+| WebSearch | Query validity cannot be determined |
 
-- Write: パスが存在しないことは新規ファイル作成
-  として正常な動作。sweepすると有効なエントリを
-  誤って削除してしまう。
-- Grep, Glob, WebFetch, WebSearch: specifierが
-  ファイルシステムパスではなくパターンやURL等
-  であるため、パス存在チェックが適用できない。
+- Write: The target path does not exist yet because
+  the tool creates new files. A missing path is the
+  expected state, not a sign of staleness.
+- Grep: The specifier is a regex pattern with no
+  filesystem entity to validate against. There is
+  no criterion to determine whether a pattern is
+  stale.
+- Glob: The specifier is a glob pattern. Even if
+  no files currently match, the match set changes
+  as files are added or removed. An empty result
+  does not imply staleness.
+- WebFetch: The specifier is a URL or domain. URL
+  availability is transient due to network errors,
+  authentication, or rate limiting. Checking
+  reachability would produce false positives.
+- WebSearch: The specifier is a search query. Any
+  query string is always potentially valid and has
+  no external state to check against.
 
 ### Not Yet Supported
 
@@ -48,12 +60,12 @@ for config details.
 | MultiEdit    | Edit       |
 | NotebookEdit | Edit       |
 
-これらはパスベースのspecifierを持ち、Read/Editと
-同様のロジックでsweep可能だが、まだ実装されて
-いない。
+These tools use path-based specifiers and could be
+swept with the same logic as Read/Edit, but are not
+yet implemented.
 
-上記いずれにも該当しない未認識toolのエントリは
-そのまま保持される。
+Entries for any other unrecognized tool are kept
+as-is.
 
 ## Read / Edit
 

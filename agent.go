@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/708u/cctidy/internal/set"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/text"
 	meta "go.abhg.dev/goldmark/frontmatter"
@@ -16,23 +17,20 @@ var fmParser = goldmark.New(
 	),
 ).Parser()
 
-// AgentNameSet is a set of known agent names.
-type AgentNameSet map[string]bool
-
 // LoadAgentNames scans the agents directory and returns
 // a set of agent names extracted from frontmatter.
 // The frontmatter name field is the sole agent identifier;
 // filenames are not used. Files without a valid name field
 // are skipped.
 // Returns an empty set if the directory does not exist.
-func LoadAgentNames(dir string) AgentNameSet {
-	set := make(AgentNameSet)
+func LoadAgentNames(dir string) set.Value[string] {
+	s := set.New[string]()
 	if dir == "" {
-		return set
+		return s
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return set
+		return s
 	}
 	for _, e := range entries {
 		if e.IsDir() {
@@ -46,10 +44,10 @@ func LoadAgentNames(dir string) AgentNameSet {
 			continue
 		}
 		if fmName := parseAgentName(data); fmName != "" {
-			set[fmName] = true
+			s.Add(fmName)
 		}
 	}
-	return set
+	return s
 }
 
 // parseAgentName extracts the name field from YAML

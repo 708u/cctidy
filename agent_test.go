@@ -76,29 +76,29 @@ func TestLoadAgentNames(t *testing.T) {
 			0o644,
 		)
 
-		set := LoadAgentNames(agentsDir)
+		names := LoadAgentNames(agentsDir)
 
-		if !set["custom-name"] {
+		if !names.Has("custom-name") {
 			t.Error("frontmatter name should be in set")
 		}
-		if set["frontmatter-agent"] {
+		if names.Has("frontmatter-agent") {
 			t.Error("filename should not be in set when frontmatter name exists")
 		}
 	})
 
 	t.Run("non-existent directory returns empty set", func(t *testing.T) {
 		t.Parallel()
-		set := LoadAgentNames("/nonexistent/dir")
-		if len(set) != 0 {
-			t.Errorf("expected empty set, got %v", set)
+		names := LoadAgentNames("/nonexistent/dir")
+		if names.Len() != 0 {
+			t.Errorf("expected empty set, got %v", names)
 		}
 	})
 
 	t.Run("empty dir string returns empty set", func(t *testing.T) {
 		t.Parallel()
-		set := LoadAgentNames("")
-		if len(set) != 0 {
-			t.Errorf("expected empty set, got %v", set)
+		names := LoadAgentNames("")
+		if names.Len() != 0 {
+			t.Errorf("expected empty set, got %v", names)
 		}
 	})
 
@@ -124,14 +124,14 @@ func TestLoadAgentNames(t *testing.T) {
 			0o644,
 		)
 
-		set := LoadAgentNames(agentsDir)
-		if set["readme"] {
+		names := LoadAgentNames(agentsDir)
+		if names.Has("readme") {
 			t.Error("non-.md file should not be in set")
 		}
-		if set["no-frontmatter"] {
+		if names.Has("no-frontmatter") {
 			t.Error("file without frontmatter name should not be in set")
 		}
-		if !set["valid-agent"] {
+		if !names.Has("valid-agent") {
 			t.Error("valid frontmatter name should be in set")
 		}
 	})
@@ -143,8 +143,8 @@ func TestLoadAgentNames(t *testing.T) {
 		os.Mkdir(agentsDir, 0o755)
 		os.Mkdir(filepath.Join(agentsDir, "subdir.md"), 0o755)
 
-		set := LoadAgentNames(agentsDir)
-		if set["subdir"] {
+		names := LoadAgentNames(agentsDir)
+		if names.Has("subdir") {
 			t.Error("directory should not be in set")
 		}
 	})

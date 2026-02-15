@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/708u/cctidy"
+	"github.com/708u/cctidy/internal/set"
 	"github.com/708u/cctidy/internal/testutil"
 )
 
@@ -72,7 +73,7 @@ func TestSettingsGolden(t *testing.T) {
 		filepath.Join(baseDir, "src/alive.go"),
 		filepath.Join(baseDir, "../alive/output.txt"),
 	)
-	mcpServers := cctidy.MCPServerSet{"github": true}
+	mcpServers := set.New("github")
 	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, mcpServers,
 		cctidy.WithBashSweep(cctidy.BashSweepConfig{}),
 		cctidy.WithBaseDir(baseDir),

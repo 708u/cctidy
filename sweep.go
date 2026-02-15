@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/708u/cctidy/internal/set"
 )
 
 // absPathRe matches absolute paths starting with / in a command string.
@@ -105,14 +107,14 @@ const (
 
 // builtinAgents maps agent names that are always available
 // in Claude Code and should never be swept.
-var builtinAgents = map[string]bool{
-	"Bash":              true,
-	"Explore":           true,
-	"Plan":              true,
-	"claude-code-guide": true,
-	"general-purpose":   true,
-	"statusline-setup":  true,
-}
+var builtinAgents = set.New(
+	"Bash",
+	"Explore",
+	"Plan",
+	"claude-code-guide",
+	"general-purpose",
+	"statusline-setup",
+)
 
 // ReadEditToolSweeper sweeps Read/Edit permission entries
 // that reference non-existent paths.
@@ -199,21 +201,15 @@ func extractRelativePaths(s string) []string {
 // BashExcluder decides whether a Bash permission specifier should be
 // excluded from sweeping (i.e. always kept).
 type BashExcluder struct {
-	entries  map[string]bool
-	commands map[string]bool
+	entries  set.Value[string]
+	commands set.Value[string]
 	paths    []string // prefix match
 }
 
 // NewBashExcluder builds a BashExcluder from a BashSweepConfig.
 func NewBashExcluder(cfg BashSweepConfig) *BashExcluder {
-	entries := make(map[string]bool, len(cfg.ExcludeEntries))
-	for _, e := range cfg.ExcludeEntries {
-		entries[e] = true
-	}
-	commands := make(map[string]bool, len(cfg.ExcludeCommands))
-	for _, c := range cfg.ExcludeCommands {
-		commands[c] = true
-	}
+	entries := set.New(cfg.ExcludeEntries...)
+	commands := set.New(cfg.ExcludeCommands...)
 	paths := make([]string, len(cfg.ExcludePaths))
 	for i, p := range cfg.ExcludePaths {
 		paths[i] = filepath.Clean(p)
@@ -229,11 +225,11 @@ func NewBashExcluder(cfg BashSweepConfig) *BashExcluder {
 // Checks are applied in order: entries (exact), commands (first token),
 // paths (prefix match on pre-extracted absolute paths).
 func (e *BashExcluder) IsExcluded(specifier string, absPaths []string) bool {
-	if e.entries[specifier] {
+	if e.entries.Has(specifier) {
 		return true
 	}
 	cmd, _, _ := strings.Cut(specifier, " ")
-	if e.commands[cmd] {
+	if e.commands.Has(cmd) {
 		return true
 	}
 	for _, absPath := range absPaths {
@@ -306,17 +302,17 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 // agents (containing ":"), and agents whose name appears in
 // the AgentNameSet are always kept.
 type TaskToolSweeper struct {
-	agents AgentNameSet
+	agents set.Value[string]
 }
 
 // NewTaskToolSweeper creates a TaskToolSweeper.
-func NewTaskToolSweeper(agents AgentNameSet) *TaskToolSweeper {
+func NewTaskToolSweeper(agents set.Value[string]) *TaskToolSweeper {
 	return &TaskToolSweeper{agents: agents}
 }
 
 func (t *TaskToolSweeper) ShouldSweep(_ context.Context, entry StandardEntry) ToolSweepResult {
 	specifier := entry.Specifier
-	if builtinAgents[specifier] {
+	if builtinAgents.Has(specifier) {
 		return ToolSweepResult{}
 	}
 	// Plugin agents use "plugin-name:agent-name" convention
@@ -324,10 +320,10 @@ func (t *TaskToolSweeper) ShouldSweep(_ context.Context, entry StandardEntry) To
 	if strings.Contains(specifier, ":") {
 		return ToolSweepResult{}
 	}
-	if len(t.agents) == 0 {
+	if t.agents.Len() == 0 {
 		return ToolSweepResult{}
 	}
-	if t.agents[specifier] {
+	if t.agents.Has(specifier) {
 		return ToolSweepResult{}
 	}
 	return ToolSweepResult{Sweep: true}
@@ -389,7 +385,7 @@ func WithBashSweep(cfg BashSweepConfig) SweepOption {
 // NewPermissionSweeper creates a PermissionSweeper.
 // homeDir is required for resolving ~/path specifiers.
 // servers is the set of known MCP server names for MCP sweep.
-func NewPermissionSweeper(checker PathChecker, homeDir string, servers MCPServerSet, opts ...SweepOption) *PermissionSweeper {
+func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value[string], opts ...SweepOption) *PermissionSweeper {
 	var cfg sweepConfig
 	for _, o := range opts {
 		o(&cfg)

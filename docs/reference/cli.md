@@ -95,14 +95,14 @@ Merged result: `enabled = true`,
 |                    |          |         | token match)               |
 | `exclude_paths`    | string[] | []      | Path prefixes to keep      |
 
-### Priority: CLI vs Config (`--sweep-bash`)
+### Priority: CLI vs Config (Bash)
 
-| config `enabled` | CLI flag  | Result    |
-| ---------------- | --------- | --------- |
-| unset / false    | absent    | sweep OFF |
-| unset / false    | present   | sweep ON  |
-| true             | absent    | sweep ON  |
-| true             | present   | sweep ON  |
+| config `enabled` | CLI flag | Result    |
+| ---------------- | -------- | --------- |
+| unset / false    | absent   | sweep OFF |
+| unset / false    | present  | sweep ON  |
+| true             | absent   | sweep ON  |
+| true             | present  | sweep ON  |
 
 The CLI flag always wins. Exclude patterns are
 config-only (no CLI flags).

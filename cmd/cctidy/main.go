@@ -204,18 +204,21 @@ func (c *CLI) resolveTargets() []targetFile {
 	if c.Target == "" {
 		return c.defaultTargets()
 	}
-	baseDir := filepath.Dir(filepath.Dir(c.Target))
-	opts := []cctidy.SweepOption{cctidy.WithBaseDir(baseDir)}
+	if filepath.Base(c.Target) == ".claude.json" {
+		f := cctidy.NewClaudeJSONFormatter(c.checker)
+		return []targetFile{{path: c.Target, formatter: f}}
+	}
+	var opts []cctidy.SweepOption
+	if filepath.Dir(c.Target) != filepath.Join(c.homeDir, ".claude") {
+		baseDir := filepath.Dir(filepath.Dir(c.Target))
+		opts = append(opts, cctidy.WithBaseDir(baseDir))
+	}
 	if bashCfg, ok := c.bashSweepConfig(); ok {
 		opts = append(opts, cctidy.WithBashSweep(bashCfg))
 	}
 	servers := c.loadMCPServers()
 	sweeper := cctidy.NewPermissionSweeper(c.checker, c.homeDir, servers, opts...)
-	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
-	if filepath.Base(c.Target) == ".claude.json" {
-		f = cctidy.NewClaudeJSONFormatter(c.checker)
-	}
-	return []targetFile{{path: c.Target, formatter: f}}
+	return []targetFile{{path: c.Target, formatter: cctidy.NewSettingsJSONFormatter(sweeper)}}
 }
 
 func findProjectRoot(dir string) string {

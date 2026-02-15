@@ -13,6 +13,7 @@ silently re-enable a previously blocked action.
 | Read  | enabled  |
 | Edit  | enabled  |
 | Bash  | disabled |
+| Task  | enabled  |
 | MCP   | enabled  |
 
 Bash sweeping requires `--sweep-bash` flag or
@@ -126,6 +127,66 @@ The first match wins.
 For `exclude_paths`, trailing `/` is recommended to
 ensure directory boundary matching.
 
+## Task
+
+Always active.
+
+Task entries have the form `Task(AgentName)`.
+The sweeper checks whether the referenced agent still
+exists.
+
+### Always Kept
+
+The following entries are never swept:
+
+- **Built-in agents**: `Bash`, `Explore`, `Plan`,
+  `claude-code-guide`, `general-purpose`,
+  `statusline-setup`
+- **Plugin agents**: specifier contains `:` (e.g.
+  `plugin:my-agent`)
+- **No context**: when neither `homeDir` nor `baseDir`
+  is available, entries are kept conservatively
+
+### Agent Name Resolution
+
+Agent names are resolved exclusively from the YAML
+frontmatter `name` field in `.md` files in the agents
+directory. Filenames are not used for identification.
+
+```markdown
+---
+name: custom-name
+---
+```
+
+Files without a valid `name` field are skipped.
+
+### Sweep Logic
+
+Agent lookup is scoped to the settings level:
+
+- **Project-level settings** (`.claude/settings.json`
+  in project): scans only
+  `<project>/.claude/agents/`
+- **User-level settings** (`~/.claude/settings.json`):
+  scans only `~/.claude/agents/`
+
+An entry is swept when:
+
+1. The agent is not built-in
+2. The specifier does not contain `:` (not a plugin)
+3. The agent name does not appear in the resolved set
+
+### Task Examples
+
+| Entry (project settings)               | Result | Reason            |
+| -------------------------------------- | ------ | ----------------- |
+| `Task(Explore)`                        | kept   | built-in agent    |
+| `Task(plugin:my-agent)`               | kept   | plugin agent      |
+| `Task(custom-name)` (frontmatter)      | kept   | frontmatter match |
+| `Task(home-agent)` (.md in home only)  | swept  | not in project    |
+| `Task(dead-agent)`                     | swept  | agent not found   |
+
 ## MCP
 
 Always active.
@@ -138,11 +199,11 @@ still registered in `.mcp.json` or `~/.claude.json`.
 
 Known servers are collected from two sources:
 
-| Source           | Key path                            |
-| ---------------- | ----------------------------------- |
-| `.mcp.json`      | `mcpServers.<name>`                 |
-| `~/.claude.json` | `mcpServers.<name>`                 |
-| `~/.claude.json` | `projects.<path>.mcpServers.<name>` |
+| Source           | Key path                             |
+| ---------------- | ------------------------------------ |
+| `.mcp.json`      | `mcpServers.<name>`                  |
+| `~/.claude.json` | `mcpServers.<name>`                  |
+| `~/.claude.json` | `projects.<path>.mcpServers.<name>`  |
 
 Missing files are silently ignored.
 

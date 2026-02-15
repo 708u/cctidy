@@ -559,6 +559,93 @@ func TestBashToolSweeperWithExcluder(t *testing.T) {
 	}
 }
 
+func TestTaskToolSweeperShouldSweep(t *testing.T) {
+	t.Parallel()
+
+	agentsWithMyAgent := AgentNameSet{"my-agent": true}
+	agentsWithProjAgent := AgentNameSet{"proj-agent": true}
+	emptyAgents := AgentNameSet{}
+
+	tests := []struct {
+		name      string
+		sweeper   *TaskToolSweeper
+		specifier string
+		wantSweep bool
+	}{
+		{
+			name:      "built-in Explore is kept",
+			sweeper:   NewTaskToolSweeper(emptyAgents),
+			specifier: "Explore",
+			wantSweep: false,
+		},
+		{
+			name:      "built-in statusline-setup is kept",
+			sweeper:   NewTaskToolSweeper(emptyAgents),
+			specifier: "statusline-setup",
+			wantSweep: false,
+		},
+		{
+			name:      "plugin agent with colon is kept",
+			sweeper:   NewTaskToolSweeper(emptyAgents),
+			specifier: "plugin:agent",
+			wantSweep: false,
+		},
+		{
+			name:      "agent in name set is kept",
+			sweeper:   NewTaskToolSweeper(agentsWithMyAgent),
+			specifier: "my-agent",
+			wantSweep: false,
+		},
+		{
+			name:      "agent not in name set is swept",
+			sweeper:   NewTaskToolSweeper(agentsWithProjAgent),
+			specifier: "my-agent",
+			wantSweep: true,
+		},
+		{
+			name:      "agent with project .md file is kept",
+			sweeper:   NewTaskToolSweeper(agentsWithProjAgent),
+			specifier: "proj-agent",
+			wantSweep: false,
+		},
+		{
+			name:      "dead agent is swept when agents set non-empty",
+			sweeper:   NewTaskToolSweeper(AgentNameSet{"other-agent": true}),
+			specifier: "dead-agent",
+			wantSweep: true,
+		},
+		{
+			name:      "frontmatter name is kept",
+			sweeper:   NewTaskToolSweeper(AgentNameSet{"custom-name": true}),
+			specifier: "custom-name",
+			wantSweep: false,
+		},
+		{
+			name:      "nil agents keeps entry conservatively",
+			sweeper:   NewTaskToolSweeper(nil),
+			specifier: "unknown",
+			wantSweep: false,
+		},
+		{
+			name:      "empty agents keeps unknown conservatively",
+			sweeper:   NewTaskToolSweeper(emptyAgents),
+			specifier: "unknown",
+			wantSweep: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			entry := StandardEntry{Tool: ToolTask, Specifier: tt.specifier}
+			result := tt.sweeper.ShouldSweep(t.Context(), entry)
+			if result.Sweep != tt.wantSweep {
+				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
+			}
+		})
+	}
+}
+
 func TestReadEditToolSweeperShouldSweep(t *testing.T) {
 	t.Parallel()
 
@@ -875,6 +962,58 @@ func TestSweepPermissions(t *testing.T) {
 		}
 		if result.SweptAllow != 1 {
 			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("task entries swept when agent dead", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		agentsDir := filepath.Join(dir, ".claude", "agents")
+		os.MkdirAll(agentsDir, 0o755)
+		os.WriteFile(filepath.Join(agentsDir, "alive-agent.md"), []byte("---\nname: alive-agent\n---\n# Alive"), 0o644)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Task(dead-agent)",
+					"Task(Explore)",
+					"Read",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("task built-in agent kept", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		agentsDir := filepath.Join(dir, ".claude", "agents")
+		os.MkdirAll(agentsDir, 0o755)
+		os.WriteFile(filepath.Join(agentsDir, "stub.md"), []byte("---\nname: stub\n---\n# Stub"), 0o644)
+
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Task(Explore)",
+					"Task(Plan)",
+					"Task(general-purpose)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBaseDir(dir)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 3 {
+			t.Errorf("allow len = %d, want 3, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
 		}
 	})
 

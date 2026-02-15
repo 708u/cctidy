@@ -99,8 +99,20 @@ const (
 	ToolEdit  ToolName = "Edit"
 	ToolWrite ToolName = "Write"
 	ToolBash  ToolName = "Bash"
+	ToolTask  ToolName = "Task"
 	ToolMCP   ToolName = "mcp"
 )
+
+// builtinAgents maps agent names that are always available
+// in Claude Code and should never be swept.
+var builtinAgents = map[string]bool{
+	"Bash":              true,
+	"Explore":           true,
+	"Plan":              true,
+	"claude-code-guide": true,
+	"general-purpose":   true,
+	"statusline-setup":  true,
+}
 
 // ReadEditToolSweeper sweeps Read/Edit permission entries
 // that reference non-existent paths.
@@ -289,6 +301,38 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 	return ToolSweepResult{Sweep: true}
 }
 
+// TaskToolSweeper sweeps Task permission entries where the
+// referenced agent no longer exists. Built-in agents, plugin
+// agents (containing ":"), and agents whose name appears in
+// the AgentNameSet are always kept.
+type TaskToolSweeper struct {
+	agents AgentNameSet
+}
+
+// NewTaskToolSweeper creates a TaskToolSweeper.
+func NewTaskToolSweeper(agents AgentNameSet) *TaskToolSweeper {
+	return &TaskToolSweeper{agents: agents}
+}
+
+func (t *TaskToolSweeper) ShouldSweep(_ context.Context, entry StandardEntry) ToolSweepResult {
+	specifier := entry.Specifier
+	if builtinAgents[specifier] {
+		return ToolSweepResult{}
+	}
+	// Plugin agents use "plugin-name:agent-name" convention
+	// and are managed by the plugin system, not by .md files.
+	if strings.Contains(specifier, ":") {
+		return ToolSweepResult{}
+	}
+	if len(t.agents) == 0 {
+		return ToolSweepResult{}
+	}
+	if t.agents[specifier] {
+		return ToolSweepResult{}
+	}
+	return ToolSweepResult{Sweep: true}
+}
+
 // SweepResult holds statistics from permission sweeping.
 // Deny entries are intentionally excluded from sweeping because they represent
 // explicit user prohibitions; removing stale deny rules costs nothing but
@@ -359,10 +403,19 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers MCPServer
 
 	mcp := NewMCPToolSweeper(servers)
 
+	var agentsDir string
+	if cfg.baseDir != "" {
+		agentsDir = filepath.Join(cfg.baseDir, ".claude", "agents")
+	} else if homeDir != "" {
+		agentsDir = filepath.Join(homeDir, ".claude", "agents")
+	}
+	task := NewTaskToolSweeper(LoadAgentNames(agentsDir))
+
 	tools := map[ToolName]ToolSweeper{
 		ToolRead: NewToolSweeper(re.ShouldSweep),
 		ToolEdit: NewToolSweeper(re.ShouldSweep),
 		ToolMCP:  NewToolSweeper(mcp.ShouldSweep),
+		ToolTask: NewToolSweeper(task.ShouldSweep),
 	}
 	if cfg.bashSweep {
 		bash := &BashToolSweeper{

@@ -58,6 +58,11 @@ func TestSettingsGolden(t *testing.T) {
 
 	homeDir := filepath.Join(t.TempDir(), "home")
 	baseDir := filepath.Join(t.TempDir(), "project")
+	// Create an agents directory with a stub agent so the agent set
+	// is non-empty and unknown agents get swept.
+	agentsDir := filepath.Join(baseDir, ".claude", "agents")
+	os.MkdirAll(agentsDir, 0o755)
+	os.WriteFile(filepath.Join(agentsDir, "stub.md"), []byte("---\nname: stub\n---\n# Stub"), 0o644)
 	checker := testutil.CheckerFor(
 		"/alive/repo",
 		"/alive/data/file.txt",
@@ -819,6 +824,169 @@ func TestIntegrationBashSweep(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "Swept:") {
 		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationTaskSweepProjectLevel(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create project structure: dir/project/.claude/settings.json
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	agentsDir := filepath.Join(claudeDir, "agents")
+	os.MkdirAll(agentsDir, 0o755)
+
+	// Create an agent file for alive-agent in project
+	os.WriteFile(filepath.Join(agentsDir, "alive-agent.md"), []byte("---\nname: alive-agent\n---\n# Alive Agent"), 0o644)
+
+	// Create an agent file with a frontmatter name different from filename
+	os.WriteFile(filepath.Join(agentsDir, "file-name-agent.md"),
+		[]byte("---\nname: frontmatter-agent\n---\n# Agent\n"), 0o644)
+
+	// Create a home agents directory with a home-agent (not in project)
+	homeAgentsDir := filepath.Join(dir, ".claude", "agents")
+	os.MkdirAll(homeAgentsDir, 0o755)
+	os.WriteFile(filepath.Join(homeAgentsDir, "home-agent.md"), []byte("# Home Agent"), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Task(Explore)",
+      "Task(dead-agent)",
+      "Task(alive-agent)",
+      "Task(home-agent)",
+      "Task(plugin:some-agent)",
+      "Task(another-dead)",
+      "Task(frontmatter-agent)",
+      "Task(file-name-agent)",
+      "Read"
+    ],
+    "deny": [
+      "Task(denied-dead-agent)"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// built-in agent should be kept
+	if !strings.Contains(got, `"Task(Explore)"`) {
+		t.Error("built-in Task(Explore) was removed")
+	}
+	// dead agent should be swept
+	if strings.Contains(got, `"Task(dead-agent)"`) {
+		t.Error("dead Task(dead-agent) was not swept")
+	}
+	// alive agent (project .md) should be kept
+	if !strings.Contains(got, `"Task(alive-agent)"`) {
+		t.Error("alive Task(alive-agent) was removed")
+	}
+	// home-only agent should be swept in project-level settings
+	if strings.Contains(got, `"Task(home-agent)"`) {
+		t.Error("home-only Task(home-agent) was not swept from project settings")
+	}
+	// plugin agent should be kept
+	if !strings.Contains(got, `"Task(plugin:some-agent)"`) {
+		t.Error("plugin Task(plugin:some-agent) was removed")
+	}
+	// another dead agent should be swept
+	if strings.Contains(got, `"Task(another-dead)"`) {
+		t.Error("dead Task(another-dead) was not swept")
+	}
+	// frontmatter name agent should be kept
+	if !strings.Contains(got, `"Task(frontmatter-agent)"`) {
+		t.Error("frontmatter-named Task(frontmatter-agent) was removed")
+	}
+	// file-name-agent should be swept (only frontmatter name is used)
+	if strings.Contains(got, `"Task(file-name-agent)"`) {
+		t.Error("filename-only Task(file-name-agent) should be swept")
+	}
+	// non-Task entry should be kept
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-Task entry was removed")
+	}
+	// deny entry should never be swept
+	if !strings.Contains(got, `"Task(denied-dead-agent)"`) {
+		t.Error("deny Task entry was incorrectly swept")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Swept:") {
+		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationTaskSweepUserLevel(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	// Create home agents directory with a home-agent
+	homeAgentsDir := filepath.Join(dir, ".claude", "agents")
+	os.MkdirAll(homeAgentsDir, 0o755)
+	os.WriteFile(filepath.Join(homeAgentsDir, "home-agent.md"),
+		[]byte("---\nname: home-agent\n---\n# Home Agent"), 0o644)
+
+	// Create an agent file with a frontmatter name different from filename
+	os.WriteFile(filepath.Join(homeAgentsDir, "fm-file.md"),
+		[]byte("---\nname: home-fm-agent\n---\n# Agent\n"), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Task(Explore)",
+      "Task(dead-agent)",
+      "Task(home-agent)",
+      "Task(plugin:some-agent)",
+      "Task(home-fm-agent)",
+      "Task(fm-file)"
+    ]
+  }
+}`
+	file := filepath.Join(dir, ".claude", "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// built-in agent should be kept
+	if !strings.Contains(got, `"Task(Explore)"`) {
+		t.Error("built-in Task(Explore) was removed")
+	}
+	// dead agent should be swept
+	if strings.Contains(got, `"Task(dead-agent)"`) {
+		t.Error("dead Task(dead-agent) was not swept")
+	}
+	// home agent should be kept in user-level settings
+	if !strings.Contains(got, `"Task(home-agent)"`) {
+		t.Error("alive Task(home-agent) was removed from user settings")
+	}
+	// plugin agent should be kept
+	if !strings.Contains(got, `"Task(plugin:some-agent)"`) {
+		t.Error("plugin Task(plugin:some-agent) was removed")
+	}
+	// frontmatter name agent should be kept
+	if !strings.Contains(got, `"Task(home-fm-agent)"`) {
+		t.Error("frontmatter-named Task(home-fm-agent) was removed from user settings")
+	}
+	// filename-only agent should be swept (only frontmatter name is used)
+	if strings.Contains(got, `"Task(fm-file)"`) {
+		t.Error("filename-only Task(fm-file) should be swept from user settings")
 	}
 }
 

@@ -234,7 +234,6 @@ func TestMergeRawConfigs(t *testing.T) {
 			t.Errorf("got %v, want %v", got.Sweep.Bash.ExcludeCommands, want)
 		}
 	})
-
 }
 
 func TestMergeConfig(t *testing.T) {
@@ -318,7 +317,6 @@ func TestMergeConfig(t *testing.T) {
 			t.Errorf("paths: got %v, want %v", got.Sweep.Bash.ExcludePaths, want)
 		}
 	})
-
 }
 
 func TestLoadProjectConfig(t *testing.T) {

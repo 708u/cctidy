@@ -1,6 +1,6 @@
 {
   "name": "cctidy",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Auto-format Claude Code config files on session start",
   "author": {
     "name": "708u"

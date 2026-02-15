@@ -303,24 +303,18 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 
 // TaskToolSweeper sweeps Task permission entries where the
 // referenced agent no longer exists. Built-in agents, plugin
-// agents (containing ":"), and agents with a .md file in the
-// agents directory are always kept.
+// agents (containing ":"), and agents whose name appears in
+// the AgentNameSet are always kept.
 type TaskToolSweeper struct {
-	checker PathChecker
-	homeDir string
-	baseDir string
+	agents AgentNameSet
 }
 
 // NewTaskToolSweeper creates a TaskToolSweeper.
-func NewTaskToolSweeper(checker PathChecker, homeDir, baseDir string) *TaskToolSweeper {
-	return &TaskToolSweeper{
-		checker: checker,
-		homeDir: homeDir,
-		baseDir: baseDir,
-	}
+func NewTaskToolSweeper(agents AgentNameSet) *TaskToolSweeper {
+	return &TaskToolSweeper{agents: agents}
 }
 
-func (t *TaskToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) ToolSweepResult {
+func (t *TaskToolSweeper) ShouldSweep(_ context.Context, entry StandardEntry) ToolSweepResult {
 	specifier := entry.Specifier
 	if builtinAgents[specifier] {
 		return ToolSweepResult{}
@@ -328,27 +322,13 @@ func (t *TaskToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 	if strings.Contains(specifier, ":") {
 		return ToolSweepResult{}
 	}
-
-	// Project-level settings: check project agents directory only.
-	if t.baseDir != "" {
-		agentPath := filepath.Join(t.baseDir, ".claude", "agents", specifier+".md")
-		if t.checker.Exists(ctx, agentPath) {
-			return ToolSweepResult{}
-		}
-		return ToolSweepResult{Sweep: true}
+	if len(t.agents) == 0 {
+		return ToolSweepResult{}
 	}
-
-	// User-level settings (no baseDir): check home agents directory.
-	if t.homeDir != "" {
-		agentPath := filepath.Join(t.homeDir, ".claude", "agents", specifier+".md")
-		if t.checker.Exists(ctx, agentPath) {
-			return ToolSweepResult{}
-		}
-		return ToolSweepResult{Sweep: true}
+	if t.agents[specifier] {
+		return ToolSweepResult{}
 	}
-
-	// No context available — conservative, keep the entry.
-	return ToolSweepResult{}
+	return ToolSweepResult{Sweep: true}
 }
 
 // SweepResult holds statistics from permission sweeping.
@@ -421,7 +401,13 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers MCPServer
 
 	mcp := NewMCPToolSweeper(servers)
 
-	task := NewTaskToolSweeper(checker, homeDir, cfg.baseDir)
+	var agentsDir string
+	if cfg.baseDir != "" {
+		agentsDir = filepath.Join(cfg.baseDir, ".claude", "agents")
+	} else if homeDir != "" {
+		agentsDir = filepath.Join(homeDir, ".claude", "agents")
+	}
+	task := NewTaskToolSweeper(LoadAgentNames(agentsDir))
 
 	tools := map[ToolName]ToolSweeper{
 		ToolRead:  NewToolSweeper(re.ShouldSweep),

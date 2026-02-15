@@ -146,31 +146,51 @@ The following entries are never swept:
 - **No context**: when neither `homeDir` nor `baseDir`
   is available, entries are kept conservatively
 
+### Agent Name Resolution
+
+Agent names are resolved from `.md` files in the
+agents directory. Two sources are checked:
+
+1. **Filename**: `my-agent.md` registers `my-agent`
+2. **Frontmatter `name` field**: a YAML frontmatter
+   `name` field registers an additional name
+
+```markdown
+---
+name: custom-name
+---
+```
+
+This file registers both `my-agent` (from filename)
+and `custom-name` (from frontmatter).
+
 ### Sweep Logic
 
 Agent lookup is scoped to the settings level:
 
 - **Project-level settings** (`.claude/settings.json`
-  in project): checks only
-  `<project>/.claude/agents/<name>.md`
+  in project): scans only
+  `<project>/.claude/agents/`
 - **User-level settings** (`~/.claude/settings.json`):
-  checks only `~/.claude/agents/<name>.md`
+  scans only `~/.claude/agents/`
 
 An entry is swept when:
 
 1. The agent is not built-in
 2. The specifier does not contain `:` (not a plugin)
-3. No `.md` file exists in the corresponding agents dir
+3. The agent name does not appear in the resolved set
+   (neither filename nor frontmatter name matches)
 
 ### Task Examples
 
-| Entry (project settings)                | Result | Reason           |
-| --------------------------------------- | ------ | ---------------- |
-| `Task(Explore)`                         | kept   | built-in agent   |
-| `Task(plugin:my-agent)`                 | kept   | plugin agent     |
-| `Task(proj-agent)` (.md in project)     | kept   | agent file found |
-| `Task(home-agent)` (.md in home only)   | swept  | not in project   |
-| `Task(dead-agent)`                      | swept  | agent not found  |
+| Entry (project settings)                | Result | Reason              |
+| --------------------------------------- | ------ | ------------------- |
+| `Task(Explore)`                         | kept   | built-in agent      |
+| `Task(plugin:my-agent)`                 | kept   | plugin agent        |
+| `Task(proj-agent)` (.md in project)     | kept   | filename match      |
+| `Task(custom-name)` (frontmatter name)  | kept   | frontmatter match   |
+| `Task(home-agent)` (.md in home only)   | swept  | not in project      |
+| `Task(dead-agent)`                      | swept  | agent not found     |
 
 ## MCP
 

@@ -57,12 +57,14 @@ for config details.
 
 | Tool         | Similar to |
 | ------------ | ---------- |
-| MultiEdit    | Edit       |
 | NotebookEdit | Edit       |
 
-These tools use path-based specifiers and could be
-swept with the same logic as Read/Edit, but are not
-yet implemented.
+NotebookEdit uses a path-based specifier and could
+be swept with the same logic as Read/Edit, but is
+not yet implemented.
+
+MultiEdit is not listed because its permission
+entries are recorded as `Edit(...)` by Claude Code.
 
 Entries for any other unrecognized tool are kept
 as-is.

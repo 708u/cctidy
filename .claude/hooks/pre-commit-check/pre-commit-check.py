@@ -20,6 +20,7 @@ CHECKS = {
             "make lint",
             "make fmt",
             "go mod tidy",
+            "go test -tags integration ./cmd/cctidy/ -update (if golden mismatch)",
         ],
     },
     "cli": {
@@ -29,8 +30,22 @@ CHECKS = {
             "Update docs if command options/behavior changed",
         ],
     },
+    "plugin": {
+        "when": "When plugin files (external/claude-code/plugins/**) are modified",
+        "commands": [
+            "Bump version in plugin.json if behavior changed",
+            "Verify hooks.json structure is valid JSON",
+        ],
+    },
+    "ci": {
+        "when": "When CI/release config (.github/workflows/**, .goreleaser.yaml) is modified",
+        "commands": [
+            "goreleaser check (if .goreleaser.yaml changed)",
+            "Review workflow job dependencies",
+        ],
+    },
     "docs": {
-        "when": "When docs (docs/**) is modified",
+        "when": "When reference docs (docs/reference/**) are modified",
         "commands": [
             "Bump version in external/claude-code/plugins/cctidy/.claude-plugin/plugin.json",
         ],

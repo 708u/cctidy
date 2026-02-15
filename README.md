@@ -56,6 +56,7 @@ sweeping.
 | Edit  | enabled  | Path existence         |
 | Bash  | disabled | All extracted paths    |
 | Task  | enabled  | Agent existence        |
+| Skill | enabled  | Skill/command existence |
 | MCP   | enabled  | Server registration    |
 
 Entries for tools not listed above (e.g. `Write`,

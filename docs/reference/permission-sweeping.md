@@ -6,7 +6,9 @@ arrays are swept. `permissions.deny` entries are always
 preserved because removing a stale deny rule could
 silently re-enable a previously blocked action.
 
-## Supported Tools
+## Tool Coverage
+
+### Swept
 
 | Tool  | Default  |
 | ----- | -------- |
@@ -22,10 +24,50 @@ Bash sweeping requires `--sweep-bash` flag or
 See [CLI Reference](cli.md#configuration-file)
 for config details.
 
-Entries for tools not listed above (e.g. `Write`,
-`WebFetch`, `Grep`) are kept unchanged. Write entries
-are excluded because the tool creates new files, so
-the target path not existing is expected.
+### Not Swept
+
+| Tool      | Reason                              |
+| --------- | ----------------------------------- |
+| Write     | Target path is not yet created      |
+| Grep      | No staleness criteria for patterns  |
+| Glob      | Current match set may be transient  |
+| WebFetch  | URL reachability is not reliable    |
+| WebSearch | Query validity cannot be determined |
+
+- Write: The target path does not exist yet because
+  the tool creates new files. A missing path is the
+  expected state, not a sign of staleness.
+- Grep: The specifier is a regex pattern with no
+  filesystem entity to validate against. There is
+  no criterion to determine whether a pattern is
+  stale.
+- Glob: The specifier is a glob pattern. Even if
+  no files currently match, the match set changes
+  as files are added or removed. An empty result
+  does not imply staleness.
+- WebFetch: The specifier is a URL or domain. URL
+  availability is transient due to network errors,
+  authentication, or rate limiting. Checking
+  reachability would produce false positives.
+- WebSearch: The specifier is a search query. Any
+  query string is always potentially valid and has
+  no external state to check against.
+
+### Not Yet Supported
+
+| Tool         | Similar to |
+| ------------ | ---------- |
+| NotebookEdit | Edit       |
+
+NotebookEdit uses a path-based specifier and could
+be swept with the same logic as Read/Edit, but is
+not yet implemented.
+
+MultiEdit is not listed because its permission
+entries are recorded as `Edit(...)` by Claude Code.
+
+Entries for any other unrecognized tool are kept
+as-is.
 
 ## Read / Edit
 

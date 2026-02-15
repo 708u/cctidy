@@ -17,9 +17,7 @@ silently re-enable a previously blocked action.
 | MCP   | enabled  |
 
 Bash sweeping requires `--sweep-bash` flag or
-`enabled = true` in the config file. MCP sweeping is
-always active because it is deterministic (based on
-server registration, not filesystem state).
+`enabled = true` in the config file.
 See [CLI Reference](cli.md#configuration-file)
 for config details.
 
@@ -85,7 +83,7 @@ and `~/path` prefixes. Bare relative paths
 Paths whose required directory is not set are
 excluded from evaluation (treated as unresolvable).
 
-### Sweep Logic
+### Bash Sweep Logic
 
 An entry is swept only when **all** of these are true:
 
@@ -148,7 +146,7 @@ Known servers are collected from two sources:
 The union of all discovered server names forms the
 known set. Missing files are silently ignored.
 
-### Sweep Logic
+### MCP Sweep Logic
 
 An entry is swept when **both** of these are true:
 

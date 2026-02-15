@@ -217,15 +217,17 @@ Skill names are resolved from two sources under the
 
 | Source | Path | Name |
 | ------ | ---- | ---- |
-| Skills | `skills/<name>/SKILL.md` | dir name |
-| Commands | `commands/<name>.md` | filename |
+| Skills | `skills/<dir>/SKILL.md` | frontmatter `name`, else dir name |
+| Commands | `commands/<file>.md` | frontmatter `name`, else filename |
 
 For skills, a subdirectory must contain `SKILL.md`
-to be recognized. The subdirectory name is the
-skill name.
+to be recognized. If SKILL.md has a YAML frontmatter
+`name` field, that value is used as the skill name;
+otherwise the subdirectory name is used.
 
-For commands, the `.md` extension is stripped to
-produce the skill name.
+For commands, if the `.md` file has a YAML
+frontmatter `name` field, that value is used;
+otherwise the filename without extension is used.
 
 ### Sweep Logic
 

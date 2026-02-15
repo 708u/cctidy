@@ -146,6 +146,84 @@ func TestLoadSkillNames(t *testing.T) {
 		}
 	})
 
+	t.Run("skill frontmatter name overrides dir name", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		skillsDir := filepath.Join(claudeDir, "skills", "dir-name")
+		os.MkdirAll(skillsDir, 0o755)
+		os.WriteFile(
+			filepath.Join(skillsDir, "SKILL.md"),
+			[]byte("---\nname: custom-name\n---\n# Skill"),
+			0o644,
+		)
+
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("custom-name") {
+			t.Error("frontmatter name should be in set")
+		}
+		if s.Has("dir-name") {
+			t.Error("dir name should not be in set when frontmatter name exists")
+		}
+	})
+
+	t.Run("skill without frontmatter name uses dir name", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		skillsDir := filepath.Join(claudeDir, "skills", "fallback-skill")
+		os.MkdirAll(skillsDir, 0o755)
+		os.WriteFile(
+			filepath.Join(skillsDir, "SKILL.md"),
+			[]byte("---\ndescription: no name field\n---\n# Skill"),
+			0o644,
+		)
+
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("fallback-skill") {
+			t.Error("dir name should be used when no frontmatter name")
+		}
+	})
+
+	t.Run("command frontmatter name overrides filename", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		commandsDir := filepath.Join(claudeDir, "commands")
+		os.MkdirAll(commandsDir, 0o755)
+		os.WriteFile(
+			filepath.Join(commandsDir, "file-name.md"),
+			[]byte("---\nname: custom-cmd\ndescription: test\n---\n# Cmd"),
+			0o644,
+		)
+
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("custom-cmd") {
+			t.Error("frontmatter name should be in set")
+		}
+		if s.Has("file-name") {
+			t.Error("filename should not be in set when frontmatter name exists")
+		}
+	})
+
+	t.Run("command without frontmatter name uses filename", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		claudeDir := filepath.Join(dir, ".claude")
+		commandsDir := filepath.Join(claudeDir, "commands")
+		os.MkdirAll(commandsDir, 0o755)
+		os.WriteFile(
+			filepath.Join(commandsDir, "fallback-cmd.md"),
+			[]byte("---\ndescription: no name\n---\n# Cmd"),
+			0o644,
+		)
+
+		s := LoadSkillNames(claudeDir)
+		if !s.Has("fallback-cmd") {
+			t.Error("filename should be used when no frontmatter name")
+		}
+	})
+
 	t.Run("file in skills dir is ignored", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()

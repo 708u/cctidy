@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/708u/cctidy/internal/md"
 	"github.com/708u/cctidy/internal/set"
 )
 
@@ -13,10 +14,13 @@ import (
 // claudeDir and returns a set of skill names.
 //
 // Skills are identified by subdirectories in <claudeDir>/skills/
-// that contain a SKILL.md file. The subdirectory name is the skill name.
+// that contain a SKILL.md file. If SKILL.md has a frontmatter
+// name field, that name is used; otherwise the directory name
+// is used.
 //
 // Commands are identified by .md files in <claudeDir>/commands/.
-// The filename without extension is the skill name.
+// If a file has a frontmatter name field, that name is used;
+// otherwise the filename without extension is used.
 //
 // Returns an empty set if claudeDir is empty or unreadable.
 func LoadSkillNames(claudeDir string) set.Value[string] {
@@ -30,6 +34,8 @@ func LoadSkillNames(claudeDir string) set.Value[string] {
 }
 
 // loadSkillsDir scans dir for subdirectories containing SKILL.md.
+// If SKILL.md has a frontmatter name field, that name is used;
+// otherwise the directory name is used.
 func loadSkillsDir(dir string, s set.Value[string]) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -40,13 +46,21 @@ func loadSkillsDir(dir string, s set.Value[string]) {
 			continue
 		}
 		skillFile := filepath.Join(dir, e.Name(), "SKILL.md")
-		if _, err := os.Stat(skillFile); err == nil {
+		data, err := os.ReadFile(skillFile)
+		if err != nil {
+			continue
+		}
+		if fmName := md.ParseName(data); fmName != "" {
+			s.Add(fmName)
+		} else {
 			s.Add(e.Name())
 		}
 	}
 }
 
 // loadCommandsDir scans dir for .md files.
+// If a file has a frontmatter name field, that name is used;
+// otherwise the filename without extension is used.
 func loadCommandsDir(dir string, s set.Value[string]) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -60,7 +74,17 @@ func loadCommandsDir(dir string, s set.Value[string]) {
 			continue
 		}
 		name := strings.TrimSuffix(e.Name(), ".md")
-		if name != "" {
+		if name == "" {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			s.Add(name)
+			continue
+		}
+		if fmName := md.ParseName(data); fmName != "" {
+			s.Add(fmName)
+		} else {
 			s.Add(name)
 		}
 	}

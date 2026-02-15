@@ -37,20 +37,60 @@ func extractMCPServerName(toolName string) (string, bool) {
 	return "", false
 }
 
+// MCPServerSets holds MCP server names separated by source.
+// Use ForUserScope or ForProjectScope to get the appropriate
+// set for a given settings file scope.
+type MCPServerSets struct {
+	mcpJSON    MCPServerSet // from .mcp.json
+	claudeJSON MCPServerSet // from ~/.claude.json
+}
+
+// ForUserScope returns servers available in user scope
+// (~/.claude/settings.json, ~/.claude/settings.local.json).
+// This includes only ~/.claude.json servers, not .mcp.json.
+func (s *MCPServerSets) ForUserScope() MCPServerSet {
+	if s == nil || len(s.claudeJSON) == 0 {
+		return MCPServerSet{}
+	}
+	result := make(MCPServerSet, len(s.claudeJSON))
+	for k := range s.claudeJSON {
+		result[k] = true
+	}
+	return result
+}
+
+// ForProjectScope returns servers available in project scope
+// (.claude/settings.json, .claude/settings.local.json).
+// This includes both .mcp.json and ~/.claude.json servers.
+func (s *MCPServerSets) ForProjectScope() MCPServerSet {
+	if s == nil {
+		return MCPServerSet{}
+	}
+	result := make(MCPServerSet, len(s.mcpJSON)+len(s.claudeJSON))
+	for k := range s.claudeJSON {
+		result[k] = true
+	}
+	for k := range s.mcpJSON {
+		result[k] = true
+	}
+	return result
+}
+
 // LoadMCPServers collects known MCP server names from .mcp.json
 // and ~/.claude.json. Missing files are silently ignored.
 // JSON parse errors are returned.
-func LoadMCPServers(mcpJSONPath, claudeJSONPath string) (MCPServerSet, error) {
-	servers := make(MCPServerSet)
+func LoadMCPServers(mcpJSONPath, claudeJSONPath string) (*MCPServerSets, error) {
+	mcpServers := make(MCPServerSet)
+	claudeServers := make(MCPServerSet)
 
-	if err := loadMCPServersFromMCPJSON(mcpJSONPath, servers); err != nil {
+	if err := loadMCPServersFromMCPJSON(mcpJSONPath, mcpServers); err != nil {
 		return nil, err
 	}
-	if err := loadMCPServersFromClaudeJSON(claudeJSONPath, servers); err != nil {
+	if err := loadMCPServersFromClaudeJSON(claudeJSONPath, claudeServers); err != nil {
 		return nil, err
 	}
 
-	return servers, nil
+	return &MCPServerSets{mcpJSON: mcpServers, claudeJSON: claudeServers}, nil
 }
 
 // collectServerNames unmarshals raw as a JSON object and adds

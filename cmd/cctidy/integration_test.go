@@ -1860,4 +1860,128 @@ func TestIntegrationMCPSweep(t *testing.T) {
 		}
 	})
 
+	t.Run("user settings not affected by mcp.json servers", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		os.MkdirAll(filepath.Join(projectDir, ".claude"), 0o755)
+
+		// .mcp.json has "slack" only
+		os.WriteFile(filepath.Join(projectDir, ".mcp.json"), []byte(`{
+			"mcpServers": {
+				"slack": {"type": "stdio"}
+			}
+		}`), 0o644)
+
+		// ~/.claude.json has "github" only
+		os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{
+			"mcpServers": {
+				"github": {"type": "stdio"}
+			}
+		}`), 0o644)
+
+		// User settings file with entries for both servers
+		userClaudeDir := filepath.Join(dir, ".claude")
+		os.MkdirAll(userClaudeDir, 0o755)
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__github__search_code",
+      "mcp__slack__post_message"
+    ]
+  }
+}`
+		file := filepath.Join(userClaudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			homeDir:     dir,
+			checker:     &osPathChecker{},
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// github is in claude.json → keep in user settings
+		if !strings.Contains(got, `"mcp__github__search_code"`) {
+			t.Error("github entry should be kept in user settings (in claude.json)")
+		}
+		// slack is only in .mcp.json → sweep from user settings
+		if strings.Contains(got, `"mcp__slack__post_message"`) {
+			t.Error("slack entry should be swept from user settings (only in .mcp.json)")
+		}
+	})
+
+	t.Run("project settings keep servers from both sources", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		// .mcp.json has "slack"
+		os.WriteFile(filepath.Join(projectDir, ".mcp.json"), []byte(`{
+			"mcpServers": {
+				"slack": {"type": "stdio"}
+			}
+		}`), 0o644)
+
+		// ~/.claude.json has "github"
+		os.WriteFile(filepath.Join(dir, ".claude.json"), []byte(`{
+			"mcpServers": {
+				"github": {"type": "stdio"}
+			}
+		}`), 0o644)
+
+		// Project settings file with entries for both + unknown
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__github__search_code",
+      "mcp__slack__post_message",
+      "mcp__jira__create_issue"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{
+			Target:      file,
+			Verbose:     true,
+			homeDir:     dir,
+			checker:     &osPathChecker{},
+			projectRoot: projectDir,
+			w:           &buf,
+		}
+		if err := cli.Run(t.Context()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// github from claude.json → keep in project settings
+		if !strings.Contains(got, `"mcp__github__search_code"`) {
+			t.Error("github entry should be kept in project settings")
+		}
+		// slack from .mcp.json → keep in project settings
+		if !strings.Contains(got, `"mcp__slack__post_message"`) {
+			t.Error("slack entry should be kept in project settings")
+		}
+		// jira not in any source → sweep
+		if strings.Contains(got, `"mcp__jira__create_issue"`) {
+			t.Error("jira entry should be swept from project settings")
+		}
+	})
+
 }

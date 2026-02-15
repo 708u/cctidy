@@ -113,26 +113,45 @@ func TestLoadMCPServers(t *testing.T) {
 			}
 		}`), 0o644)
 
-		servers, err := LoadMCPServers(mcpJSON, claudeJSON)
+		sets, err := LoadMCPServers(mcpJSON, claudeJSON)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
+		user := sets.ForUserScope()
+		project := sets.ForProjectScope()
+
+		// User scope: only claude.json servers
+		for _, name := range []string{"jira", "sentry"} {
+			if !user[name] {
+				t.Errorf("user scope: expected server %q", name)
+			}
+		}
+		for _, name := range []string{"slack", "github"} {
+			if user[name] {
+				t.Errorf("user scope: should not contain %q", name)
+			}
+		}
+
+		// Project scope: all servers
 		for _, name := range []string{"slack", "github", "jira", "sentry"} {
-			if !servers[name] {
-				t.Errorf("expected server %q to be present", name)
+			if !project[name] {
+				t.Errorf("project scope: expected server %q", name)
 			}
 		}
 	})
 
-	t.Run("missing files returns empty set", func(t *testing.T) {
+	t.Run("missing files returns empty sets", func(t *testing.T) {
 		t.Parallel()
-		servers, err := LoadMCPServers("/nonexistent/.mcp.json", "/nonexistent/.claude.json")
+		sets, err := LoadMCPServers("/nonexistent/.mcp.json", "/nonexistent/.claude.json")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(servers) != 0 {
-			t.Errorf("expected empty set, got %v", servers)
+		if len(sets.ForUserScope()) != 0 {
+			t.Errorf("expected empty user set, got %v", sets.ForUserScope())
+		}
+		if len(sets.ForProjectScope()) != 0 {
+			t.Errorf("expected empty project set, got %v", sets.ForProjectScope())
 		}
 	})
 
@@ -147,15 +166,21 @@ func TestLoadMCPServers(t *testing.T) {
 			}
 		}`), 0o644)
 
-		servers, err := LoadMCPServers(mcpJSON, "/nonexistent/.claude.json")
+		sets, err := LoadMCPServers(mcpJSON, "/nonexistent/.claude.json")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !servers["slack"] {
-			t.Error("expected slack server")
+		// User scope should be empty (no claude.json servers)
+		if len(sets.ForUserScope()) != 0 {
+			t.Errorf("user scope should be empty, got %v", sets.ForUserScope())
 		}
-		if len(servers) != 1 {
-			t.Errorf("expected 1 server, got %d", len(servers))
+		// Project scope should contain slack
+		project := sets.ForProjectScope()
+		if !project["slack"] {
+			t.Error("project scope: expected slack server")
+		}
+		if len(project) != 1 {
+			t.Errorf("project scope: expected 1 server, got %d", len(project))
 		}
 	})
 
@@ -175,12 +200,13 @@ func TestLoadMCPServers(t *testing.T) {
 			}
 		}`), 0o644)
 
-		servers, err := LoadMCPServers("/nonexistent/.mcp.json", claudeJSON)
+		sets, err := LoadMCPServers("/nonexistent/.mcp.json", claudeJSON)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !servers["slack"] || !servers["github"] {
-			t.Errorf("expected slack and github, got %v", servers)
+		user := sets.ForUserScope()
+		if !user["slack"] || !user["github"] {
+			t.Errorf("user scope: expected slack and github, got %v", user)
 		}
 	})
 
@@ -208,22 +234,25 @@ func TestLoadMCPServers(t *testing.T) {
 		}
 	})
 
-	t.Run("no mcpServers key returns empty set", func(t *testing.T) {
+	t.Run("no mcpServers key returns empty sets", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 		mcpJSON := filepath.Join(dir, ".mcp.json")
 		os.WriteFile(mcpJSON, []byte(`{"other": "value"}`), 0o644)
 
-		servers, err := LoadMCPServers(mcpJSON, "/nonexistent/.claude.json")
+		sets, err := LoadMCPServers(mcpJSON, "/nonexistent/.claude.json")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if len(servers) != 0 {
-			t.Errorf("expected empty set, got %v", servers)
+		if len(sets.ForUserScope()) != 0 {
+			t.Errorf("expected empty user set, got %v", sets.ForUserScope())
+		}
+		if len(sets.ForProjectScope()) != 0 {
+			t.Errorf("expected empty project set, got %v", sets.ForProjectScope())
 		}
 	})
 
-	t.Run("union of all three sources", func(t *testing.T) {
+	t.Run("scope separation of sources", func(t *testing.T) {
 		t.Parallel()
 		dir := t.TempDir()
 
@@ -240,14 +269,89 @@ func TestLoadMCPServers(t *testing.T) {
 			}
 		}`), 0o644)
 
-		servers, err := LoadMCPServers(mcpJSON, claudeJSON)
+		sets, err := LoadMCPServers(mcpJSON, claudeJSON)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		for _, name := range []string{"from-mcp", "from-top", "from-project"} {
-			if !servers[name] {
-				t.Errorf("expected server %q", name)
+
+		user := sets.ForUserScope()
+		project := sets.ForProjectScope()
+
+		// User scope: only claude.json sources
+		if user["from-mcp"] {
+			t.Error("user scope should not contain from-mcp")
+		}
+		for _, name := range []string{"from-top", "from-project"} {
+			if !user[name] {
+				t.Errorf("user scope: expected %q", name)
 			}
+		}
+
+		// Project scope: all sources
+		for _, name := range []string{"from-mcp", "from-top", "from-project"} {
+			if !project[name] {
+				t.Errorf("project scope: expected %q", name)
+			}
+		}
+	})
+}
+
+func TestMCPServerSetsScopes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil pointer returns empty sets", func(t *testing.T) {
+		t.Parallel()
+		var sets *MCPServerSets
+		user := sets.ForUserScope()
+		project := sets.ForProjectScope()
+		if len(user) != 0 {
+			t.Errorf("nil user scope should be empty, got %v", user)
+		}
+		if len(project) != 0 {
+			t.Errorf("nil project scope should be empty, got %v", project)
+		}
+	})
+
+	t.Run("user scope excludes mcp.json", func(t *testing.T) {
+		t.Parallel()
+		sets := &MCPServerSets{
+			mcpJSON:    MCPServerSet{"slack": true},
+			claudeJSON: MCPServerSet{"github": true},
+		}
+		user := sets.ForUserScope()
+		if user["slack"] {
+			t.Error("user scope should not contain mcp.json server")
+		}
+		if !user["github"] {
+			t.Error("user scope should contain claude.json server")
+		}
+	})
+
+	t.Run("project scope includes both", func(t *testing.T) {
+		t.Parallel()
+		sets := &MCPServerSets{
+			mcpJSON:    MCPServerSet{"slack": true},
+			claudeJSON: MCPServerSet{"github": true},
+		}
+		project := sets.ForProjectScope()
+		if !project["slack"] {
+			t.Error("project scope should contain mcp.json server")
+		}
+		if !project["github"] {
+			t.Error("project scope should contain claude.json server")
+		}
+	})
+
+	t.Run("returned sets are independent copies", func(t *testing.T) {
+		t.Parallel()
+		sets := &MCPServerSets{
+			claudeJSON: MCPServerSet{"github": true},
+		}
+		user1 := sets.ForUserScope()
+		user2 := sets.ForUserScope()
+		user1["modified"] = true
+		if user2["modified"] {
+			t.Error("modifying one returned set should not affect another")
 		}
 	})
 }

@@ -6,7 +6,5 @@
     "name": "708u"
   },
   "license": "MIT",
-  "keywords": [
-    "claude-code", "config", "formatter", "json", "cctidy"
-  ]
+  "keywords": ["claude-code", "config", "formatter", "json", "cctidy"]
 }

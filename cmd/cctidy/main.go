@@ -31,6 +31,7 @@ type CLI struct {
 
 	checker     cctidy.PathChecker
 	cfg         *cctidy.Config
+	homeDir     string
 	projectRoot string
 	w           io.Writer
 }
@@ -73,6 +74,7 @@ func run() int {
 
 	cli := CLI{
 		checker: &osPathChecker{},
+		homeDir: home,
 		w:       os.Stderr,
 	}
 	kong.Parse(&cli,
@@ -100,7 +102,7 @@ func run() int {
 		return 2
 	}
 
-	if err := cli.Run(ctx, home); err != nil {
+	if err := cli.Run(ctx); err != nil {
 		if errors.Is(err, errUnformatted) {
 			return 1
 		}
@@ -110,8 +112,8 @@ func run() int {
 	return 0
 }
 
-func (c *CLI) Run(ctx context.Context, home string) error {
-	return c.runTargets(ctx, c.resolveTargets(home))
+func (c *CLI) Run(ctx context.Context) error {
+	return c.runTargets(ctx, c.resolveTargets())
 }
 
 func (c *CLI) checkFile(ctx context.Context, tf targetFile) (bool, error) {
@@ -214,9 +216,9 @@ func (c *CLI) taskSweepConfig() (cctidy.TaskSweepConfig, bool) {
 	return cctidy.TaskSweepConfig{}, false
 }
 
-func (c *CLI) resolveTargets(home string) []targetFile {
+func (c *CLI) resolveTargets() []targetFile {
 	if c.Target == "" {
-		return c.defaultTargets(home)
+		return c.defaultTargets()
 	}
 	baseDir := filepath.Dir(filepath.Dir(c.Target))
 	opts := []cctidy.SweepOption{cctidy.WithBaseDir(baseDir)}
@@ -226,7 +228,8 @@ func (c *CLI) resolveTargets(home string) []targetFile {
 	if taskCfg, ok := c.taskSweepConfig(); ok {
 		opts = append(opts, cctidy.WithTaskSweep(taskCfg))
 	}
-	sweeper := cctidy.NewPermissionSweeper(c.checker, home, opts...)
+	servers := c.loadMCPServers()
+	sweeper := cctidy.NewPermissionSweeper(c.checker, c.homeDir, servers, opts...)
 	var f Formatter = cctidy.NewSettingsJSONFormatter(sweeper)
 	if filepath.Base(c.Target) == ".claude.json" {
 		f = cctidy.NewClaudeJSONFormatter(c.checker)
@@ -249,7 +252,22 @@ func findProjectRoot(dir string) string {
 	}
 }
 
-func (c *CLI) defaultTargets(home string) []targetFile {
+// loadMCPServers loads known MCP server names from .mcp.json and
+// ~/.claude.json. Errors are printed as warnings; an empty set is
+// returned on failure so sweep can still proceed conservatively.
+func (c *CLI) loadMCPServers() cctidy.MCPServerSet {
+	servers, err := cctidy.LoadMCPServers(
+		filepath.Join(c.projectRoot, ".mcp.json"),
+		filepath.Join(c.homeDir, ".claude.json"),
+	)
+	if err != nil {
+		fmt.Fprintf(c.w, "cctidy: warning: loading MCP servers: %v\n", err)
+		return cctidy.MCPServerSet{}
+	}
+	return servers
+}
+
+func (c *CLI) defaultTargets() []targetFile {
 	projectRoot := c.projectRoot
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
 	var globalOpts []cctidy.SweepOption
@@ -264,12 +282,13 @@ func (c *CLI) defaultTargets(home string) []targetFile {
 		globalOpts = append(globalOpts, taskOpt)
 		projectOpts = append(projectOpts, taskOpt)
 	}
-	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, globalOpts...))
-	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, home, projectOpts...))
+	servers := c.loadMCPServers()
+	globalSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, c.homeDir, servers, globalOpts...))
+	projectSettings := cctidy.NewSettingsJSONFormatter(cctidy.NewPermissionSweeper(c.checker, c.homeDir, servers, projectOpts...))
 	return []targetFile{
-		{path: filepath.Join(home, ".claude.json"), formatter: claude},
-		{path: filepath.Join(home, ".claude", "settings.json"), formatter: globalSettings},
-		{path: filepath.Join(home, ".claude", "settings.local.json"), formatter: globalSettings},
+		{path: filepath.Join(c.homeDir, ".claude.json"), formatter: claude},
+		{path: filepath.Join(c.homeDir, ".claude", "settings.json"), formatter: globalSettings},
+		{path: filepath.Join(c.homeDir, ".claude", "settings.local.json"), formatter: globalSettings},
 		{path: filepath.Join(projectRoot, ".claude", "settings.json"), formatter: projectSettings},
 		{path: filepath.Join(projectRoot, ".claude", "settings.local.json"), formatter: projectSettings},
 	}

@@ -98,11 +98,11 @@ Merged result: `enabled = true`,
 
 #### `[sweep.task]`
 
-| Key              | Type     | Default | Description              |
-| ---------------- | -------- | ------- | ------------------------ |
-| `enabled`        | bool     | (unset) | Enable Task sweep        |
-| `exclude_agents` | string[] | []      | Agent names to keep      |
-|                  |          |         | (exact match)            |
+| Key              | Type     | Default | Description         |
+| ---------------- | -------- | ------- | ------------------- |
+| `enabled`        | bool     | (unset) | Enable Task sweep   |
+| `exclude_agents` | string[] | []      | Agent names to keep |
+|                  |          |         | (exact match)       |
 
 ### Priority: CLI vs Config
 

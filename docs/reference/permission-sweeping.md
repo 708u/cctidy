@@ -15,6 +15,7 @@ silently re-enable a previously blocked action.
 | Write | enabled  |
 | Bash  | disabled |
 | Task  | disabled |
+| MCP   | enabled  |
 
 Bash sweeping requires `--sweep-bash` flag or
 `enabled = true` in the config file. Task sweeping
@@ -85,7 +86,7 @@ and `~/path` prefixes. Bare relative paths
 Paths whose required directory is not set are
 excluded from evaluation (treated as unresolvable).
 
-### Sweep Logic
+### Bash Sweep Logic
 
 An entry is swept only when **all** of these are true:
 
@@ -165,19 +166,59 @@ An entry is swept when all of these are true:
 
 ### Examples
 
-| Entry                      | Result | Reason            |
-| -------------------------- | ------ | ----------------- |
-| `Task(Explore)`            | kept   | built-in agent    |
-| `Task(plugin:my-agent)`    | kept   | plugin agent      |
-| `Task(my-agent)` (.md exists) | kept | agent file found |
-| `Task(dead-agent)`         | swept  | agent not found   |
-| `Task(unknown)` (no baseDir) | kept | no project ctx  |
+| Entry                         | Result | Reason           |
+| ----------------------------- | ------ | ---------------- |
+| `Task(Explore)`               | kept   | built-in agent   |
+| `Task(plugin:my-agent)`       | kept   | plugin agent     |
+| `Task(my-agent)` (.md exists) | kept   | agent file found |
+| `Task(dead-agent)`            | swept  | agent not found  |
+| `Task(unknown)` (no baseDir)  | kept   | no project ctx   |
 
 ### Exclude Patterns
 
 When a config file is provided, Task entries matching
 `exclude_agents` are always kept (never swept).
 
-| Type              | Match method | Example          |
-| ----------------- | ------------ | ---------------- |
-| `exclude_agents`  | Exact name   | `my-special-agent` |
+| Type             | Match method | Example            |
+| ---------------- | ------------ | ------------------ |
+| `exclude_agents` | Exact name   | `my-special-agent` |
+
+## MCP
+
+Always active.
+
+MCP entries use the `mcp__<server>__<tool>` naming
+convention. The sweeper checks whether the server is
+still registered in `.mcp.json` or `~/.claude.json`.
+
+### Server Discovery
+
+Known servers are collected from two sources:
+
+| Source           | Key path                            |
+| ---------------- | ---------------------------------- |
+| `.mcp.json`      | `mcpServers.<name>`                |
+| `~/.claude.json` | `mcpServers.<name>`                |
+| `~/.claude.json` | `projects.<path>.mcpServers.<name>`|
+
+The union of all discovered server names forms the
+known set. Missing files are silently ignored.
+
+### MCP Sweep Logic
+
+An entry is swept when **both** of these are true:
+
+1. The tool name starts with `mcp__` (but not
+   `mcp__plugin_`)
+2. The extracted server name is not in the known set
+
+Marketplace plugin entries (`mcp__plugin_*`) are always
+kept because they are managed by the plugin system, not
+by `.mcp.json`.
+
+### Bare Entries
+
+Both forms are supported:
+
+- `mcp__slack__post_message` (with tool name)
+- `mcp__slack` (bare server reference)

@@ -384,6 +384,20 @@ func TestBashToolSweeperShouldSweep(t *testing.T) {
 			specifier: "cat ./local ../parent ~/home",
 			wantSweep: false,
 		},
+		{
+			name: "remove command sweeps entry without paths",
+			sweeper: NewBashToolSweeper(testutil.AllPathsExist{}, "", "",
+				NewBashExcluder(BashPermissionConfig{RemoveCommands: []string{"npm"}}), true),
+			specifier: "npm install foo",
+			wantSweep: true,
+		},
+		{
+			name: "remove command sweeps entry even with alive paths",
+			sweeper: NewBashToolSweeper(testutil.AllPathsExist{}, "", "",
+				NewBashExcluder(BashPermissionConfig{RemoveCommands: []string{"git"}}), true),
+			specifier: "git -C /alive/repo status",
+			wantSweep: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -395,6 +409,58 @@ func TestBashToolSweeperShouldSweep(t *testing.T) {
 				t.Errorf("ShouldSweep(%q) = %v, want %v", tt.specifier, result.Sweep, tt.wantSweep)
 			}
 		})
+	}
+}
+
+func TestBashExcluderIsRemoveTarget(t *testing.T) {
+	t.Parallel()
+
+	excl := NewBashExcluder(BashPermissionConfig{
+		RemoveCommands: []string{"npm", "pip"},
+	})
+
+	tests := []struct {
+		name      string
+		specifier string
+		want      bool
+	}{
+		{
+			name:      "remove match npm",
+			specifier: "npm install foo",
+			want:      true,
+		},
+		{
+			name:      "remove match pip",
+			specifier: "pip install requests",
+			want:      true,
+		},
+		{
+			name:      "no match git",
+			specifier: "git status",
+			want:      false,
+		},
+		{
+			name:      "single token match",
+			specifier: "npm",
+			want:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := excl.IsRemoveTarget(tt.specifier); got != tt.want {
+				t.Errorf("IsRemoveTarget(%q) = %v, want %v", tt.specifier, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBashExcluderIsRemoveTargetEmpty(t *testing.T) {
+	t.Parallel()
+	excl := NewBashExcluder(BashPermissionConfig{})
+	if excl.IsRemoveTarget("npm install foo") {
+		t.Error("empty remove commands should not match anything")
 	}
 }
 
@@ -562,6 +628,16 @@ func TestBashToolSweeperWithExcluder(t *testing.T) {
 			name:      "empty excluder does not affect sweeping",
 			sweeper:   mustNewBashToolSweeper(t, testutil.NoPathsExist{}, "", "", UserLevel, noExcludes, true),
 			specifier: "git -C /dead/repo status",
+			wantSweep: true,
+		},
+		{
+			name: "remove wins over exclude for same command",
+			sweeper: NewBashToolSweeper(testutil.AllPathsExist{}, "", "",
+				NewBashExcluder(BashPermissionConfig{
+					RemoveCommands:  []string{"npm"},
+					ExcludeCommands: []string{"npm"},
+				}), true),
+			specifier: "npm install foo",
 			wantSweep: true,
 		},
 	}

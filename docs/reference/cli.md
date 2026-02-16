@@ -87,13 +87,16 @@ Merged result: `enabled = true`,
 
 #### `[permission.bash]`
 
-| Key                | Type     | Default | Description                |
-| ------------------ | -------- | ------- | -------------------------- |
-| `enabled`          | bool     | (unset) | Enable Bash sweep          |
-| `exclude_entries`  | string[] | []      | Specifiers to keep (exact) |
-| `exclude_commands` | string[] | []      | Commands to keep (first    |
-|                    |          |         | token match)               |
-| `exclude_paths`    | string[] | []      | Path prefixes to keep      |
+| Key                | Type     | Default | Description            |
+| ------------------ | -------- | ------- | ---------------------- |
+| `enabled`          | bool     | (unset) | Enable Bash sweep      |
+| `remove_commands`  | string[] | []      | Commands to always     |
+|                    |          |         | sweep (first token)    |
+| `exclude_entries`  | string[] | []      | Specifiers to keep     |
+|                    |          |         | (exact match)          |
+| `exclude_commands` | string[] | []      | Commands to keep       |
+|                    |          |         | (first token match)    |
+| `exclude_paths`    | string[] | []      | Path prefixes to keep  |
 
 ### Priority: CLI vs Config (Bash)
 

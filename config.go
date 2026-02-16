@@ -26,6 +26,10 @@ type BashPermissionConfig struct {
 	// Enabled turns on Bash sweep when true.
 	Enabled bool `toml:"enabled"`
 
+	// RemoveCommands lists command names (first token) to always sweep,
+	// regardless of path existence. Takes priority over ExcludeCommands.
+	RemoveCommands []string `toml:"remove_commands"`
+
 	// ExcludeEntries lists specifiers to exclude by exact match.
 	ExcludeEntries []string `toml:"exclude_entries"`
 
@@ -40,6 +44,7 @@ type BashPermissionConfig struct {
 // rawBashPermissionConfig uses *bool to distinguish "unset" from "false".
 type rawBashPermissionConfig struct {
 	Enabled         *bool    `toml:"enabled"`
+	RemoveCommands  []string `toml:"remove_commands"`
 	ExcludeEntries  []string `toml:"exclude_entries"`
 	ExcludeCommands []string `toml:"exclude_commands"`
 	ExcludePaths    []string `toml:"exclude_paths"`
@@ -86,6 +91,7 @@ func rawToConfig(raw rawConfig) *Config {
 	if raw.Permission.Bash.Enabled != nil {
 		cfg.Permission.Bash.Enabled = *raw.Permission.Bash.Enabled
 	}
+	cfg.Permission.Bash.RemoveCommands = raw.Permission.Bash.RemoveCommands
 	cfg.Permission.Bash.ExcludeEntries = raw.Permission.Bash.ExcludeEntries
 	cfg.Permission.Bash.ExcludeCommands = raw.Permission.Bash.ExcludeCommands
 	cfg.Permission.Bash.ExcludePaths = raw.Permission.Bash.ExcludePaths
@@ -119,6 +125,8 @@ func mergeRawConfigs(base, overlay rawConfig) rawConfig {
 		merged.Permission.Bash.Enabled = base.Permission.Bash.Enabled
 	}
 
+	merged.Permission.Bash.RemoveCommands = unionStrings(
+		base.Permission.Bash.RemoveCommands, overlay.Permission.Bash.RemoveCommands)
 	merged.Permission.Bash.ExcludeEntries = unionStrings(
 		base.Permission.Bash.ExcludeEntries, overlay.Permission.Bash.ExcludeEntries)
 	merged.Permission.Bash.ExcludeCommands = unionStrings(
@@ -182,6 +190,8 @@ func MergeConfig(base *Config, project rawConfig, projectRoot string) *Config {
 		merged.Permission.Bash.Enabled = base.Permission.Bash.Enabled
 	}
 
+	merged.Permission.Bash.RemoveCommands = unionStrings(
+		base.Permission.Bash.RemoveCommands, project.Permission.Bash.RemoveCommands)
 	merged.Permission.Bash.ExcludeEntries = unionStrings(
 		base.Permission.Bash.ExcludeEntries, project.Permission.Bash.ExcludeEntries)
 	merged.Permission.Bash.ExcludeCommands = unionStrings(

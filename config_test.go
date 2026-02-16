@@ -234,6 +234,19 @@ func TestMergeRawConfigs(t *testing.T) {
 			t.Errorf("got %v, want %v", got.Permission.Bash.ExcludeCommands, want)
 		}
 	})
+
+	t.Run("RemoveCommands union", func(t *testing.T) {
+		t.Parallel()
+		base := rawConfig{}
+		base.Permission.Bash.RemoveCommands = []string{"npm", "pip"}
+		overlay := rawConfig{}
+		overlay.Permission.Bash.RemoveCommands = []string{"pip", "yarn"}
+		got := mergeRawConfigs(base, overlay)
+		want := []string{"npm", "pip", "yarn"}
+		if !slices.Equal(got.Permission.Bash.RemoveCommands, want) {
+			t.Errorf("got %v, want %v", got.Permission.Bash.RemoveCommands, want)
+		}
+	})
 }
 
 func TestMergeConfig(t *testing.T) {
@@ -301,6 +314,19 @@ func TestMergeConfig(t *testing.T) {
 		wantEntries := []string{"entry1", "entry2"}
 		if !slices.Equal(got.Permission.Bash.ExcludeEntries, wantEntries) {
 			t.Errorf("entries: got %v, want %v", got.Permission.Bash.ExcludeEntries, wantEntries)
+		}
+	})
+
+	t.Run("RemoveCommands union with dedup", func(t *testing.T) {
+		t.Parallel()
+		base := &Config{}
+		base.Permission.Bash.RemoveCommands = []string{"npm", "pip"}
+		project := rawConfig{}
+		project.Permission.Bash.RemoveCommands = []string{"pip", "yarn"}
+		got := MergeConfig(base, project, "/project")
+		want := []string{"npm", "pip", "yarn"}
+		if !slices.Equal(got.Permission.Bash.RemoveCommands, want) {
+			t.Errorf("RemoveCommands: got %v, want %v", got.Permission.Bash.RemoveCommands, want)
 		}
 	})
 

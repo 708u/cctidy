@@ -202,15 +202,18 @@ func extractRelativePaths(s string) []string {
 }
 
 // BashExcluder decides whether a Bash permission specifier should be
-// excluded from sweeping (i.e. always kept).
+// excluded from sweeping (i.e. always kept), or force-swept via
+// remove_commands.
 type BashExcluder struct {
-	entries  set.Value[string]
-	commands set.Value[string]
-	paths    []string // prefix match
+	removeCommands set.Value[string]
+	entries        set.Value[string]
+	commands       set.Value[string]
+	paths          []string // prefix match
 }
 
 // NewBashExcluder builds a BashExcluder from a BashPermissionConfig.
 func NewBashExcluder(cfg BashPermissionConfig) *BashExcluder {
+	removeCommands := set.New(cfg.RemoveCommands...)
 	entries := set.New(cfg.ExcludeEntries...)
 	commands := set.New(cfg.ExcludeCommands...)
 	paths := make([]string, len(cfg.ExcludePaths))
@@ -218,10 +221,19 @@ func NewBashExcluder(cfg BashPermissionConfig) *BashExcluder {
 		paths[i] = filepath.Clean(p)
 	}
 	return &BashExcluder{
-		entries:  entries,
-		commands: commands,
-		paths:    paths,
+		removeCommands: removeCommands,
+		entries:        entries,
+		commands:       commands,
+		paths:          paths,
 	}
+}
+
+// IsRemoveTarget reports whether the specifier's command (first token)
+// matches remove_commands. Entries matching remove_commands are always
+// swept, taking priority over exclude rules.
+func (e *BashExcluder) IsRemoveTarget(specifier string) bool {
+	cmd, _, _ := strings.Cut(specifier, " ")
+	return e.removeCommands.Has(cmd)
 }
 
 // IsExcluded reports whether the specifier matches any exclusion rule.
@@ -282,6 +294,11 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 		return ToolSweepResult{}
 	}
 	specifier := entry.Specifier
+
+	if b.excluder.IsRemoveTarget(specifier) {
+		return ToolSweepResult{Sweep: true}
+	}
+
 	absPaths := extractAbsolutePaths(specifier)
 
 	if b.excluder.IsExcluded(specifier, absPaths) {

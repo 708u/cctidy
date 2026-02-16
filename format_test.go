@@ -237,7 +237,11 @@ func TestSettingsJSONFormatter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			result, err := NewSettingsJSONFormatter(NewPermissionSweeper(tt.checker, "", nil)).Format(t.Context(), []byte(tt.input))
+			sweeper, err := NewPermissionSweeper(tt.checker, "", nil)
+			if err != nil {
+				t.Fatalf("NewPermissionSweeper: %v", err)
+			}
+			result, err := NewSettingsJSONFormatter(sweeper).Format(t.Context(), []byte(tt.input))
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -258,7 +262,11 @@ func TestSettingsJSONFormatter(t *testing.T) {
 func TestSettingsJSONFormatterDoesNotAddProjects(t *testing.T) {
 	t.Parallel()
 	input := `{"key": "value"}`
-	result, err := NewSettingsJSONFormatter(NewPermissionSweeper(testutil.AllPathsExist{}, "", nil)).Format(t.Context(), []byte(input))
+	sweeper, err := NewPermissionSweeper(testutil.AllPathsExist{}, "", nil)
+	if err != nil {
+		t.Fatalf("NewPermissionSweeper: %v", err)
+	}
+	result, err := NewSettingsJSONFormatter(sweeper).Format(t.Context(), []byte(input))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

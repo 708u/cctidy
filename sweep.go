@@ -130,6 +130,7 @@ type ReadEditToolSweeper struct {
 	checker    PathChecker
 	homeDir    string
 	projectDir string
+	level      SettingsLevel
 }
 
 // containsGlob reports whether s contains glob metacharacters.
@@ -154,7 +155,7 @@ func (r *ReadEditToolSweeper) ShouldSweep(ctx context.Context, entry StandardEnt
 		rest, _ := strings.CutPrefix(specifier, "~/")
 		resolved = filepath.Join(r.homeDir, rest)
 	default: // /path, ./path, ../path, bare path — all project-relative
-		if r.projectDir == "" {
+		if r.level != ProjectLevel {
 			return ToolSweepResult{}
 		}
 		resolved = filepath.Join(r.projectDir, specifier)
@@ -253,6 +254,7 @@ type BashToolSweeper struct {
 	checker    PathChecker
 	homeDir    string
 	projectDir string
+	level      SettingsLevel
 	excluder   *BashExcluder
 	active     bool
 }
@@ -260,11 +262,12 @@ type BashToolSweeper struct {
 // NewBashToolSweeper creates a BashToolSweeper.
 // active controls whether sweeping is performed at all;
 // when false, ShouldSweep always returns a zero result.
-func NewBashToolSweeper(checker PathChecker, homeDir, projectDir string, excluder *BashExcluder, active bool) *BashToolSweeper {
+func NewBashToolSweeper(checker PathChecker, homeDir, projectDir string, level SettingsLevel, excluder *BashExcluder, active bool) *BashToolSweeper {
 	return &BashToolSweeper{
 		checker:    checker,
 		homeDir:    homeDir,
 		projectDir: projectDir,
+		level:      level,
 		excluder:   excluder,
 		active:     active,
 	}
@@ -293,7 +296,7 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 			rest, _ := strings.CutPrefix(p, "~/")
 			resolved = append(resolved, filepath.Join(b.homeDir, rest))
 		case strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../"):
-			if b.projectDir == "" {
+			if b.level != ProjectLevel {
 				continue
 			}
 			resolved = append(resolved, filepath.Join(b.projectDir, p))
@@ -379,7 +382,7 @@ type PermissionSweeper struct {
 type SettingsLevel int
 
 const (
-	UserLevel SettingsLevel = iota
+	UserLevel SettingsLevel = iota + 1
 	ProjectLevel
 )
 
@@ -422,7 +425,7 @@ func WithUnsafe() SweepOption {
 // homeDir is required for resolving ~/path specifiers.
 // servers is the set of known MCP server names for MCP sweep.
 func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value[string], opts ...SweepOption) *PermissionSweeper {
-	var cfg sweepConfig
+	cfg := sweepConfig{level: UserLevel}
 	for _, o := range opts {
 		o(&cfg)
 	}
@@ -431,6 +434,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value
 		checker:    checker,
 		homeDir:    homeDir,
 		projectDir: cfg.projectDir,
+		level:      cfg.level,
 	}
 
 	mcp := NewMCPToolSweeper(servers)
@@ -459,7 +463,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value
 		bashCfg = *cfg.bashCfg
 	}
 	bash := NewBashToolSweeper(
-		checker, homeDir, cfg.projectDir,
+		checker, homeDir, cfg.projectDir, cfg.level,
 		NewBashExcluder(bashCfg),
 		bashCfg.Enabled || cfg.unsafe,
 	)

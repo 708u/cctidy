@@ -83,7 +83,7 @@ func TestSettingsGolden(t *testing.T) {
 	)
 	mcpServers := set.New("github")
 	sweeper := cctidy.NewPermissionSweeper(checker, homeDir, mcpServers,
-		cctidy.WithBashSweep(cctidy.BashSweepConfig{}),
+		cctidy.WithUnsafe(),
 		cctidy.WithBaseDir(baseDir),
 	)
 	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
@@ -781,7 +781,7 @@ func TestIntegrationBashSweep(t *testing.T) {
 	os.WriteFile(file, []byte(input), 0o644)
 
 	var buf bytes.Buffer
-	cli := &CLI{Target: file, SweepBash: true, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+	cli := &CLI{Target: file, Unsafe: true, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
 	if err := cli.Run(t.Context()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1015,7 +1015,7 @@ func TestIntegrationBashSweepDisabledByDefault(t *testing.T) {
 	os.WriteFile(file, []byte(input), 0o644)
 
 	var buf bytes.Buffer
-	// SweepBash is NOT set
+	// Unsafe is NOT set
 	cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
 	if err := cli.Run(t.Context()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -1025,7 +1025,7 @@ func TestIntegrationBashSweepDisabledByDefault(t *testing.T) {
 	got := string(data)
 
 	if !strings.Contains(got, `"Bash(git -C `+deadPath) {
-		t.Error("bash entry was swept without --sweep-bash flag")
+		t.Error("bash entry was swept without --unsafe flag")
 	}
 }
 
@@ -1087,13 +1087,13 @@ exclude_commands = ["mkdir", "touch"]
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:    file,
-			SweepBash: true,
-			Verbose:   true,
-			homeDir:   dir,
-			checker:   &osPathChecker{},
-			cfg:       cfg,
-			w:         &buf,
+			Target:  file,
+			Unsafe:  true,
+			Verbose: true,
+			homeDir: dir,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
 		}
 		if err := cli.Run(t.Context()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1144,13 +1144,13 @@ exclude_entries = ["install -m 755 `+deadPath+`/bin/app"]
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:    file,
-			SweepBash: true,
-			Verbose:   true,
-			homeDir:   dir,
-			checker:   &osPathChecker{},
-			cfg:       cfg,
-			w:         &buf,
+			Target:  file,
+			Unsafe:  true,
+			Verbose: true,
+			homeDir: dir,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
 		}
 		if err := cli.Run(t.Context()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1198,13 +1198,13 @@ exclude_paths = ["`+deadPath+`/opt/"]
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:    file,
-			SweepBash: true,
-			Verbose:   true,
-			homeDir:   dir,
-			checker:   &osPathChecker{},
-			cfg:       cfg,
-			w:         &buf,
+			Target:  file,
+			Unsafe:  true,
+			Verbose: true,
+			homeDir: dir,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
 		}
 		if err := cli.Run(t.Context()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1349,13 +1349,13 @@ enabled = false
 
 		var buf bytes.Buffer
 		cli := &CLI{
-			Target:    file,
-			SweepBash: true,
-			Verbose:   true,
-			homeDir:   dir,
-			checker:   &osPathChecker{},
-			cfg:       cfg,
-			w:         &buf,
+			Target:  file,
+			Unsafe:  true,
+			Verbose: true,
+			homeDir: dir,
+			checker: &osPathChecker{},
+			cfg:     cfg,
+			w:       &buf,
 		}
 		if err := cli.Run(t.Context()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -1365,7 +1365,7 @@ enabled = false
 		got := string(data)
 
 		if strings.Contains(got, `"Bash(git -C `+deadPath) {
-			t.Error("CLI --sweep-bash should override config enabled=false")
+			t.Error("CLI --unsafe should override config enabled=false")
 		}
 	})
 
@@ -1733,6 +1733,64 @@ exclude_paths = ["vendor/"]
 			t.Error("bash entry should be kept without project config")
 		}
 	})
+}
+
+func TestIntegrationBashSafeTierViaConfig(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	deadPath := filepath.Join(dir, "dead-repo")
+
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+
+	os.WriteFile(filepath.Join(claudeDir, "cctidy.toml"),
+		[]byte("[sweep.bash]\nenabled = true\n"), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "Bash(git -C ` + deadPath + ` status)",
+      "Bash(npm run *)"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	cfg, _ := cctidy.LoadConfig("/nonexistent/config.toml")
+	projectCfg, err := cctidy.LoadProjectConfig(projectDir)
+	if err != nil {
+		t.Fatalf("loading project config: %v", err)
+	}
+	merged := cctidy.MergeConfig(cfg, projectCfg, projectDir)
+
+	var buf bytes.Buffer
+	// Unsafe is NOT set; config enabled=true promotes Bash to safe tier
+	cli := &CLI{
+		Target:      file,
+		Verbose:     true,
+		homeDir:     dir,
+		checker:     &osPathChecker{},
+		cfg:         merged,
+		projectRoot: projectDir,
+		w:           &buf,
+	}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// Bash entry with dead path should be swept (safe tier via config)
+	if strings.Contains(got, `"Bash(git -C `+deadPath) {
+		t.Error("bash entry should be swept when config enabled=true (safe tier)")
+	}
+	// Bash entry without paths should be kept
+	if !strings.Contains(got, `"Bash(npm run *)"`) {
+		t.Error("bash entry without paths should be kept")
+	}
 }
 
 func TestIntegrationMCPSweep(t *testing.T) {

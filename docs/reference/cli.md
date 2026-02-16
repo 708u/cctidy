@@ -14,7 +14,7 @@ cctidy [flags]
 | `--backup`            |       | false   | Create backup before writing      |
 | `--dry-run`           |       | false   | Show changes without writing      |
 | `--check`             |       | false   | Exit with 1 if any file is dirty  |
-| `--sweep-bash`        |       | false   | Include Bash entries in sweeping  |
+| `--unsafe`            |       | false   | Enable unsafe sweepers (e.g. Bash) |
 | `--config`            |       | (auto)  | Path to config file               |
 | `--verbose`           | `-v`  | false   | Show formatting details           |
 | `--version`           |       |         | Print version                     |
@@ -33,7 +33,7 @@ layers overriding earlier ones.
 | 1 (low)  | `~/.config/cctidy/config.toml`  | Global  |
 | 2        | `.claude/cctidy.toml`           | Project |
 | 3        | `.claude/cctidy.local.toml`     | Local   |
-| 4 (high) | CLI flags (`--sweep-bash`)      | Runtime |
+| 4 (high) | CLI flags (`--unsafe`)          | Runtime |
 
 The global config path can be overridden with
 `--config PATH`.
@@ -97,15 +97,17 @@ Merged result: `enabled = true`,
 
 ### Priority: CLI vs Config (Bash)
 
-| config `enabled` | CLI flag | Result    |
-| ---------------- | -------- | --------- |
-| unset / false    | absent   | sweep OFF |
-| unset / false    | present  | sweep ON  |
-| true             | absent   | sweep ON  |
-| true             | present  | sweep ON  |
+| config `enabled` | `--unsafe` | Result    |
+| ---------------- | ---------- | --------- |
+| unset / false    | absent     | sweep OFF |
+| unset / false    | present    | sweep ON  |
+| true             | absent     | sweep ON  |
+| true             | present    | sweep ON  |
 
-The CLI flag always wins. Exclude patterns are
-config-only (no CLI flags).
+The `--unsafe` flag enables all unsafe-tier sweepers.
+Config `enabled = true` promotes Bash to safe tier
+(always active without `--unsafe`). Exclude patterns
+are config-only (no CLI flags).
 
 ## Target Files
 

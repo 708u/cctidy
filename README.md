@@ -42,11 +42,11 @@ of project-relative path resolution for permission
 sweeping.
 
 > [!NOTE]
-> Bash tool sweeping is opt-in via `--sweep-bash` flag
-> or `enabled = true` in config. Bash entries may contain
-> paths that do not yet exist (e.g. output paths for
-> `mkdir`, `touch`), so automatic sweeping could remove
-> intentional permissions.
+> Bash tool sweeping is opt-in via `--unsafe` flag
+> or `[sweep.bash] enabled = true` in config. Bash
+> entries use path extraction heuristics that may
+> produce false positives, so sweeping is disabled
+> by default.
 
 ### Supported Tools
 
@@ -111,8 +111,8 @@ cctidy --check
 # Format a specific file with backup
 cctidy -t ~/.claude.json --backup
 
-# Include Bash tool sweeping
-cctidy --sweep-bash
+# Include unsafe sweepers (e.g. Bash)
+cctidy --unsafe
 ```
 
 ## CLI Options
@@ -123,7 +123,7 @@ cctidy --sweep-bash
 | `--backup`            |       | Create backup before writing      |
 | `--dry-run`           |       | Show changes without writing      |
 | `--check`             |       | Exit with 1 if any file is dirty  |
-| `--sweep-bash`        |       | Include Bash entries in sweeping  |
+| `--unsafe`            |       | Enable unsafe sweepers (e.g. Bash)|
 | `--config`            |       | Path to config file               |
 | `--verbose`           | `-v`  | Show formatting details           |
 | `--version`           |       | Print version                     |
@@ -150,7 +150,7 @@ are merged in the following order (later wins):
 1. Global: `~/.config/cctidy/config.toml`
 2. Project shared: `.claude/cctidy.toml`
 3. Project local: `.claude/cctidy.local.toml`
-4. CLI flags (`--sweep-bash`)
+4. CLI flags (`--unsafe`)
 
 Project config files are searched from the nearest
 `.claude/` directory, walking up from the current

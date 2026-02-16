@@ -254,9 +254,26 @@ type BashToolSweeper struct {
 	homeDir  string
 	baseDir  string
 	excluder *BashExcluder
+	active   bool
+}
+
+// NewBashToolSweeper creates a BashToolSweeper.
+// active controls whether sweeping is performed at all;
+// when false, ShouldSweep always returns a zero result.
+func NewBashToolSweeper(checker PathChecker, homeDir, baseDir string, excluder *BashExcluder, active bool) *BashToolSweeper {
+	return &BashToolSweeper{
+		checker:  checker,
+		homeDir:  homeDir,
+		baseDir:  baseDir,
+		excluder: excluder,
+		active:   active,
+	}
 }
 
 func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) ToolSweepResult {
+	if !b.active {
+		return ToolSweepResult{}
+	}
 	specifier := entry.Specifier
 	absPaths := extractAbsolutePaths(specifier)
 
@@ -361,8 +378,8 @@ type SweepOption func(*sweepConfig)
 
 type sweepConfig struct {
 	baseDir      string
-	bashSweep    bool
-	bashSweepCfg BashSweepConfig
+	unsafe       bool
+	bashSweepCfg *BashSweepConfig
 }
 
 // WithBaseDir sets the base directory for resolving relative path specifiers.
@@ -372,14 +389,19 @@ func WithBaseDir(dir string) SweepOption {
 	}
 }
 
-// WithBashSweep enables sweeping of Bash permission entries whose
-// absolute paths are all non-existent. The optional BashSweepConfig
-// specifies exclusion patterns; entries matching any pattern are
-// always kept regardless of path existence.
-func WithBashSweep(cfg BashSweepConfig) SweepOption {
+// WithBashConfig sets the BashSweepConfig for Bash sweeping.
+// Exclude patterns filter entries from sweeping.
+// When cfg.Enabled is true, Bash sweep runs without --unsafe.
+func WithBashConfig(cfg *BashSweepConfig) SweepOption {
 	return func(c *sweepConfig) {
-		c.bashSweep = true
 		c.bashSweepCfg = cfg
+	}
+}
+
+// WithUnsafe enables unsafe-tier sweepers.
+func WithUnsafe() SweepOption {
+	return func(c *sweepConfig) {
+		c.unsafe = true
 	}
 }
 
@@ -414,21 +436,23 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value
 	task := NewTaskToolSweeper(LoadAgentNames(agentsDir))
 	skill := NewSkillToolSweeper(LoadSkillNames(claudeDir))
 
+	var bashCfg BashSweepConfig
+	if cfg.bashSweepCfg != nil {
+		bashCfg = *cfg.bashSweepCfg
+	}
+	bash := NewBashToolSweeper(
+		checker, homeDir, cfg.baseDir,
+		NewBashExcluder(bashCfg),
+		bashCfg.Enabled || cfg.unsafe,
+	)
+
 	tools := map[ToolName]ToolSweeper{
 		ToolRead:  NewToolSweeper(re.ShouldSweep),
 		ToolEdit:  NewToolSweeper(re.ShouldSweep),
+		ToolBash:  NewToolSweeper(bash.ShouldSweep),
 		ToolMCP:   NewToolSweeper(mcp.ShouldSweep),
 		ToolTask:  NewToolSweeper(task.ShouldSweep),
 		ToolSkill: NewToolSweeper(skill.ShouldSweep),
-	}
-	if cfg.bashSweep {
-		bash := &BashToolSweeper{
-			checker:  checker,
-			homeDir:  homeDir,
-			baseDir:  cfg.baseDir,
-			excluder: NewBashExcluder(cfg.bashSweepCfg),
-		}
-		tools[ToolBash] = NewToolSweeper(bash.ShouldSweep)
 	}
 
 	return &PermissionSweeper{tools: tools}
@@ -486,12 +510,12 @@ func (p *PermissionSweeper) shouldSweep(ctx context.Context, entry string, resul
 		return false
 	}
 
-	sweeper, ok := p.tools[te.Name()]
+	tool, ok := p.tools[te.Name()]
 	if !ok {
 		return false
 	}
 
-	r := sweeper.ShouldSweep(ctx, te)
+	r := tool.ShouldSweep(ctx, te)
 	if r.Warn != "" {
 		result.Warns = append(result.Warns, entry)
 		return false

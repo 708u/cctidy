@@ -284,85 +284,85 @@ func TestBashToolSweeperShouldSweep(t *testing.T) {
 	}{
 		{
 			name:      "all paths dead",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "git -C /dead/repo status",
 			wantSweep: true,
 		},
 		{
 			name:      "one path alive",
-			sweeper:   &BashToolSweeper{checker: testutil.CheckerFor("/alive/src"), excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.CheckerFor("/alive/src"), "", "", noExcludes, true),
 			specifier: "cp /alive/src /dead/dst",
 			wantSweep: false,
 		},
 		{
 			name:      "no absolute paths keeps entry",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "npm run *",
 			wantSweep: false,
 		},
 		{
 			name:      "all paths alive",
-			sweeper:   &BashToolSweeper{checker: testutil.AllPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.AllPathsExist{}, "", "", noExcludes, true),
 			specifier: "cp /src/a /dst/b",
 			wantSweep: false,
 		},
 		{
 			name:      "multiple dead paths",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "cp /dead/a /dead/b",
 			wantSweep: true,
 		},
 		{
 			name:      "tilde path dead with homeDir",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, homeDir: "/home/user", excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "/home/user", "", noExcludes, true),
 			specifier: "cat ~/dead/config",
 			wantSweep: true,
 		},
 		{
 			name:      "tilde path alive with homeDir",
-			sweeper:   &BashToolSweeper{checker: testutil.CheckerFor("/home/user/alive/config"), homeDir: "/home/user", excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.CheckerFor("/home/user/alive/config"), "/home/user", "", noExcludes, true),
 			specifier: "cat ~/alive/config",
 			wantSweep: false,
 		},
 		{
 			name:      "tilde path without homeDir is skipped",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "cat ~/config",
 			wantSweep: false,
 		},
 		{
 			name:      "dot-slash path dead with baseDir",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, baseDir: "/project", excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "/project", noExcludes, true),
 			specifier: "cat ./src/main.go",
 			wantSweep: true,
 		},
 		{
 			name:      "dot-slash path without baseDir is skipped",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "cat ./src/main.go",
 			wantSweep: false,
 		},
 		{
 			name:      "dot-dot-slash path dead with baseDir",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, baseDir: "/project", excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "/project", noExcludes, true),
 			specifier: "cat ../other/file",
 			wantSweep: true,
 		},
 		{
 			name:      "mixed absolute and relative all dead",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, homeDir: "/home/user", baseDir: "/project", excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "/home/user", "/project", noExcludes, true),
 			specifier: "cp /dead/src ./dead/dst",
 			wantSweep: true,
 		},
 		{
 			name:      "mixed absolute and relative one alive",
-			sweeper:   &BashToolSweeper{checker: testutil.CheckerFor("/alive/src"), homeDir: "/home/user", baseDir: "/project", excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.CheckerFor("/alive/src"), "/home/user", "/project", noExcludes, true),
 			specifier: "cp /alive/src ./dead/dst",
 			wantSweep: false,
 		},
 		{
 			name:      "only unresolvable relative paths keeps entry",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "cat ./local ../parent ~/home",
 			wantSweep: false,
 		},
@@ -530,19 +530,19 @@ func TestBashToolSweeperWithExcluder(t *testing.T) {
 	}{
 		{
 			name:      "excluded command keeps entry even with dead paths",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: excl},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", excl, true),
 			specifier: "mkdir -p /dead/path",
 			wantSweep: false,
 		},
 		{
 			name:      "non-excluded command with dead paths is swept",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: excl},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", excl, true),
 			specifier: "git -C /dead/repo status",
 			wantSweep: true,
 		},
 		{
 			name:      "empty excluder does not affect sweeping",
-			sweeper:   &BashToolSweeper{checker: testutil.NoPathsExist{}, excluder: noExcludes},
+			sweeper:   NewBashToolSweeper(testutil.NoPathsExist{}, "", "", noExcludes, true),
 			specifier: "git -C /dead/repo status",
 			wantSweep: true,
 		},
@@ -880,7 +880,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithUnsafe()).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 2 {
 			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
@@ -899,7 +899,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.CheckerFor("/alive/src"), "", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.CheckerFor("/alive/src"), "", nil, WithUnsafe()).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
@@ -937,7 +937,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "/home/user", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "/home/user", nil, WithUnsafe()).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 0 {
 			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
@@ -956,7 +956,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashSweep(BashSweepConfig{}), WithBaseDir("/project")).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithUnsafe(), WithBaseDir("/project")).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 0 {
 			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
@@ -1128,7 +1128,7 @@ func TestSweepPermissions(t *testing.T) {
 				},
 			},
 		}
-		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashSweep(BashSweepConfig{})).Sweep(t.Context(), obj)
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithUnsafe()).Sweep(t.Context(), obj)
 		allow := obj["permissions"].(map[string]any)["allow"].([]any)
 		if len(allow) != 1 {
 			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
@@ -1253,4 +1253,62 @@ func TestSweepPermissions(t *testing.T) {
 			t.Errorf("SweptAsk = %d, want 1", result.SweptAsk)
 		}
 	})
+
+	t.Run("bash entries kept when unsafe not set", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(git -C /dead/repo status)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries swept when unsafe is set", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(git -C /dead/repo status)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithUnsafe()).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 0 {
+			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("bash entries swept when config enabled (safe tier)", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash(git -C /dead/repo status)",
+				},
+			},
+		}
+		result := NewPermissionSweeper(testutil.NoPathsExist{}, "", nil, WithBashConfig(&BashSweepConfig{Enabled: true})).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 0 {
+			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
 }

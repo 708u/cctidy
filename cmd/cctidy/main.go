@@ -211,6 +211,8 @@ func (c *CLI) resolveTargets() ([]targetFile, error) {
 	}
 	serverSets := c.loadMCPServers()
 	mcpServers := c.mcpServersForTarget(serverSets, c.Target)
+	plugins := c.loadEnabledPlugins()
+	opts = append(opts, cctidy.WithEnabledPlugins(plugins))
 	sweeper, err := cctidy.NewPermissionSweeper(c.checker, c.homeDir, mcpServers, opts...)
 	if err != nil {
 		return nil, err
@@ -259,6 +261,17 @@ func (c *CLI) mcpServersForTarget(servers *cctidy.MCPServerSets, target string) 
 	return servers.ForProjectScope()
 }
 
+// loadEnabledPlugins loads enabledPlugins from all settings files.
+// Returns nil when no file contains enabledPlugins (sweeper inactive).
+func (c *CLI) loadEnabledPlugins() *cctidy.EnabledPlugins {
+	return cctidy.LoadEnabledPlugins(
+		filepath.Join(c.homeDir, ".claude", "settings.json"),
+		filepath.Join(c.homeDir, ".claude", "settings.local.json"),
+		filepath.Join(c.projectRoot, ".claude", "settings.json"),
+		filepath.Join(c.projectRoot, ".claude", "settings.local.json"),
+	)
+}
+
 func (c *CLI) defaultTargets() ([]targetFile, error) {
 	projectRoot := c.projectRoot
 	claude := cctidy.NewClaudeJSONFormatter(c.checker)
@@ -275,6 +288,10 @@ func (c *CLI) defaultTargets() ([]targetFile, error) {
 		projectOpts = append(projectOpts, unsafeOpt)
 	}
 	serverSets := c.loadMCPServers()
+	plugins := c.loadEnabledPlugins()
+	pluginOpt := cctidy.WithEnabledPlugins(plugins)
+	globalOpts = append(globalOpts, pluginOpt)
+	projectOpts = append(projectOpts, pluginOpt)
 	globalSweeper, err := cctidy.NewPermissionSweeper(c.checker, c.homeDir, serverSets.ForUserScope(), globalOpts...)
 	if err != nil {
 		return nil, err

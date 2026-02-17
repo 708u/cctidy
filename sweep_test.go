@@ -1318,6 +1318,163 @@ func TestSweepPermissions(t *testing.T) {
 		}
 	})
 
+	t.Run("MCP plugin entry swept when plugin disabled", func(t *testing.T) {
+		t.Parallel()
+		plugins := &EnabledPlugins{names: map[string]bool{"github": true, "linter": false}}
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"mcp__plugin_github_github__search_code",
+					"mcp__plugin_linter_acme__check",
+					"Read",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil, WithEnabledPlugins(plugins)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("Skill plugin entry kept when plugin absent (conservative)", func(t *testing.T) {
+		t.Parallel()
+		plugins := &EnabledPlugins{names: map[string]bool{"github": true}}
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Skill(linter:lint-check)",
+					"Skill(github:review)",
+					"Read",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil, WithEnabledPlugins(plugins)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 3 {
+			t.Errorf("allow len = %d, want 3, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("Skill plugin entry swept when plugin explicitly disabled", func(t *testing.T) {
+		t.Parallel()
+		plugins := &EnabledPlugins{names: map[string]bool{"github": true, "linter": false}}
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Skill(linter:lint-check)",
+					"Skill(github:review)",
+					"Read",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil, WithEnabledPlugins(plugins)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("Task plugin entry swept when plugin disabled", func(t *testing.T) {
+		t.Parallel()
+		plugins := &EnabledPlugins{names: map[string]bool{"linter": false}}
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Task(linter:lint-agent)",
+					"Task(Explore)",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil, WithEnabledPlugins(plugins)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("all plugin entries kept when enabledPlugins nil", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"mcp__plugin_github_github__search_code",
+					"Skill(linter:lint-check)",
+					"Task(linter:lint-agent)",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 3 {
+			t.Errorf("allow len = %d, want 3, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("same plugin name across marketplaces one enabled", func(t *testing.T) {
+		t.Parallel()
+		// github is enabled via OR merge
+		plugins := &EnabledPlugins{names: map[string]bool{"github": true}}
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"mcp__plugin_github_github__search_code",
+					"Skill(github:review)",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil, WithEnabledPlugins(plugins)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 0 {
+			t.Errorf("SweptAllow = %d, want 0", result.SweptAllow)
+		}
+	})
+
+	t.Run("plugin deny entries never swept", func(t *testing.T) {
+		t.Parallel()
+		plugins := &EnabledPlugins{names: map[string]bool{"linter": false}}
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"mcp__plugin_linter_acme__check",
+				},
+				"deny": []any{
+					"mcp__plugin_linter_acme__dangerous",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil, WithEnabledPlugins(plugins)).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		deny := obj["permissions"].(map[string]any)["deny"].([]any)
+		if len(allow) != 0 {
+			t.Errorf("allow len = %d, want 0, got %v", len(allow), allow)
+		}
+		if len(deny) != 1 {
+			t.Errorf("deny should be kept, got %v", deny)
+		}
+		if result.SweptAllow != 1 {
+			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
 	t.Run("bash entries swept when config enabled (safe tier)", func(t *testing.T) {
 		t.Parallel()
 		obj := map[string]any{

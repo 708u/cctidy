@@ -53,7 +53,12 @@
       "Skill(dead-skill)",
       "Skill(plugin:my-skill)",
       "Skill(stub-skill *)",
-      "Skill(dead-skill *)"
+      "Skill(dead-skill *)",
+      "Skill(linter:lint-check)",
+      "Task(linter:lint-agent)",
+      "mcp__plugin_linter_acme__check",
+      "Skill(github:review)",
+      "Task(github:code-review)"
     ]
   },
   "sandbox": {

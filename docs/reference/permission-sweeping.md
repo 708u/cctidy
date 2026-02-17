@@ -202,7 +202,8 @@ The following entries are never swept:
   `claude-code-guide`, `general-purpose`,
   `statusline-setup`
 - **Plugin agents**: specifier contains `:` (e.g.
-  `plugin:my-agent`)
+  `plugin:my-agent`). These are handled by the
+  [plugin sweeper](#plugin) instead.
 - **No context**: when neither `homeDir` nor `projectDir`
   is available, entries are kept conservatively
 
@@ -264,7 +265,8 @@ command. The sweeper checks both directories.
 The following entries are never swept:
 
 - **Plugin skills**: specifier contains `:` (e.g.
-  `plugin:skill-name`)
+  `plugin:skill-name`). These are handled by the
+  [plugin sweeper](#plugin) instead.
 - **No context**: when neither `homeDir` nor `projectDir`
   is available, entries are kept conservatively
 
@@ -363,9 +365,9 @@ An entry is swept when **both** of these are true:
 2. The extracted server name is not in the known set
    for the target file's scope
 
-Marketplace plugin entries (`mcp__plugin_*`) are always
-kept because they are managed by the plugin system, not
-by `.mcp.json`.
+Marketplace plugin entries (`mcp__plugin_*`) bypass the
+MCP sweeper and are handled by the plugin sweeper
+instead. See the [Plugin](#plugin) section.
 
 ### Bare Entries
 
@@ -373,3 +375,77 @@ Both forms are supported:
 
 - `mcp__slack__post_message` (with tool name)
 - `mcp__slack` (bare server reference)
+
+## Plugin
+
+Always active. Safe tier.
+
+Plugin entries are permission entries associated with
+a marketplace plugin. The sweeper checks whether the
+plugin is still enabled in `enabledPlugins`.
+
+### Plugin Entry Formats
+
+Three tool types can have plugin entries:
+
+| Type  | Format | Plugin name |
+| ----- | ------ | ----------- |
+| MCP   | `mcp__plugin_<name>_<server>__<tool>` | first `_` token after `mcp__plugin_` |
+| Skill | `Skill(<name>:<suffix>)` | part before `:` |
+| Task  | `Task(<name>:<suffix>)` | part before `:` |
+
+### enabledPlugins Discovery
+
+The `enabledPlugins` map is collected from all settings
+files:
+
+- `~/.claude/settings.json`
+- `~/.claude/settings.local.json`
+- `.claude/settings.json`
+- `.claude/settings.local.json`
+
+Keys have the form `name@marketplace`. The plugin name
+is the part before `@`. When the same plugin name
+appears in multiple keys (different marketplaces),
+the values are OR-merged: if any is `true`, the plugin
+is considered enabled.
+
+### Plugin Sweep Logic
+
+A plugin entry is swept when **all** of these are true:
+
+1. The entry is identified as a plugin entry
+2. `enabledPlugins` exists in at least one settings
+   file
+3. The plugin name is explicitly registered as
+   disabled (`false`) in the merged map
+
+The following entries are always kept:
+
+- When no file contains `enabledPlugins` (sweeper
+  inactive)
+- When the plugin name is not present in the merged
+  map (unknown plugin, conservative)
+- When the plugin is enabled (`true`)
+- `permissions.deny` entries (never swept)
+
+### Plugin Examples
+
+Given `enabledPlugins`:
+
+```json
+{
+  "github@claude-plugins-official": true,
+  "linter@acme-tools": false
+}
+```
+
+| Entry | Result | Reason |
+| --- | --- | --- |
+| `mcp__plugin_github_github__search_code` | kept | github enabled |
+| `mcp__plugin_linter_acme__check` | swept | linter disabled |
+| `Skill(github:review)` | kept | github enabled |
+| `Skill(linter:lint-check)` | swept | linter disabled |
+| `Task(linter:lint-agent)` | swept | linter disabled |
+| `Skill(plugin:my-skill)` | kept | unknown plugin |
+| `mcp__slack__post_message` | (MCP) | handled by MCP sweeper |

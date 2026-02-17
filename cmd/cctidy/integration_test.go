@@ -91,9 +91,23 @@ func TestSettingsGolden(t *testing.T) {
 		filepath.Join(projectDir, "../alive/output.txt"),
 	)
 	mcpServers := set.New("github")
+	// Create a settings file with enabledPlugins so plugin sweep is active.
+	pluginSettingsDir := filepath.Join(projectDir, ".claude")
+	os.WriteFile(filepath.Join(pluginSettingsDir, "settings.local.json"), []byte(`{
+		"enabledPlugins": {
+			"github@claude-plugins-official": true,
+			"linter@acme-tools": false,
+			"formatter@acme-tools": true
+		}
+	}`), 0o644)
+	plugins := cctidy.LoadEnabledPlugins(
+		filepath.Join(pluginSettingsDir, "settings.json"),
+		filepath.Join(pluginSettingsDir, "settings.local.json"),
+	)
 	sweeper, err := cctidy.NewPermissionSweeper(checker, homeDir, mcpServers,
 		cctidy.WithUnsafe(),
 		cctidy.WithProjectLevel(projectDir),
+		cctidy.WithEnabledPlugins(plugins),
 	)
 	if err != nil {
 		t.Fatalf("NewPermissionSweeper: %v", err)
@@ -2268,5 +2282,151 @@ func TestIntegrationSkillSweepUserLevel(t *testing.T) {
 	// dir name should be swept (frontmatter overrides)
 	if strings.Contains(got, `"Skill(fm-dir)"`) {
 		t.Error("Skill(fm-dir) should be swept from user settings")
+	}
+}
+
+func TestIntegrationPluginSweep(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+
+	// Create enabledPlugins in project settings
+	os.WriteFile(filepath.Join(claudeDir, "settings.local.json"), []byte(`{
+		"enabledPlugins": {
+			"github@claude-plugins-official": true,
+			"linter@acme-tools": false,
+			"formatter@acme-tools": true
+		}
+	}`), 0o644)
+
+	input := `{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_github_github__search_code",
+      "mcp__plugin_linter_acme__check",
+      "mcp__plugin_formatter_tools__format",
+      "Skill(github:review)",
+      "Skill(linter:lint-check)",
+      "Task(github:code-review)",
+      "Task(linter:lint-agent)",
+      "mcp__slack__post_message",
+      "Read"
+    ],
+    "deny": [
+      "mcp__plugin_linter_acme__dangerous"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{
+		Target:      file,
+		Verbose:     true,
+		homeDir:     dir,
+		checker:     &osPathChecker{},
+		projectRoot: projectDir,
+		w:           &buf,
+	}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// github plugin enabled → keep all github plugin entries
+	if !strings.Contains(got, `"mcp__plugin_github_github__search_code"`) {
+		t.Error("github MCP plugin entry should be kept (plugin enabled)")
+	}
+	if !strings.Contains(got, `"Skill(github:review)"`) {
+		t.Error("github Skill plugin entry should be kept (plugin enabled)")
+	}
+	if !strings.Contains(got, `"Task(github:code-review)"`) {
+		t.Error("github Task plugin entry should be kept (plugin enabled)")
+	}
+
+	// linter plugin disabled → sweep all linter plugin entries
+	if strings.Contains(got, `"mcp__plugin_linter_acme__check"`) {
+		t.Error("linter MCP plugin entry should be swept (plugin disabled)")
+	}
+	if strings.Contains(got, `"Skill(linter:lint-check)"`) {
+		t.Error("linter Skill plugin entry should be swept (plugin disabled)")
+	}
+	if strings.Contains(got, `"Task(linter:lint-agent)"`) {
+		t.Error("linter Task plugin entry should be swept (plugin disabled)")
+	}
+
+	// formatter plugin enabled → keep
+	if !strings.Contains(got, `"mcp__plugin_formatter_tools__format"`) {
+		t.Error("formatter MCP plugin entry should be kept (plugin enabled)")
+	}
+
+	// non-plugin entries should be kept as-is
+	if !strings.Contains(got, `"Read"`) {
+		t.Error("non-plugin entry was removed")
+	}
+
+	// deny entries should never be swept
+	if !strings.Contains(got, `"mcp__plugin_linter_acme__dangerous"`) {
+		t.Error("deny plugin entry was incorrectly swept")
+	}
+
+	output := buf.String()
+	if !strings.Contains(output, "Swept:") {
+		t.Errorf("expected swept stats in output: %s", output)
+	}
+}
+
+func TestIntegrationPluginSweepNoEnabledPlugins(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	projectDir := filepath.Join(dir, "project")
+	claudeDir := filepath.Join(projectDir, ".claude")
+	os.MkdirAll(claudeDir, 0o755)
+
+	// No enabledPlugins in any settings file
+	input := `{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_github_github__search_code",
+      "Skill(linter:lint-check)",
+      "Task(linter:lint-agent)"
+    ]
+  }
+}`
+	file := filepath.Join(claudeDir, "settings.json")
+	os.WriteFile(file, []byte(input), 0o644)
+
+	var buf bytes.Buffer
+	cli := &CLI{
+		Target:      file,
+		Verbose:     true,
+		homeDir:     dir,
+		checker:     &osPathChecker{},
+		projectRoot: projectDir,
+		w:           &buf,
+	}
+	if err := cli.Run(t.Context()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	data, _ := os.ReadFile(file)
+	got := string(data)
+
+	// All plugin entries should be kept when no enabledPlugins found
+	if !strings.Contains(got, `"mcp__plugin_github_github__search_code"`) {
+		t.Error("plugin entry should be kept when no enabledPlugins")
+	}
+	if !strings.Contains(got, `"Skill(linter:lint-check)"`) {
+		t.Error("plugin skill entry should be kept when no enabledPlugins")
+	}
+	if !strings.Contains(got, `"Task(linter:lint-agent)"`) {
+		t.Error("plugin task entry should be kept when no enabledPlugins")
 	}
 }

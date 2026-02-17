@@ -377,7 +377,8 @@ type sweepCategory struct {
 //
 // Ref: https://code.claude.com/docs/en/permissions#permission-rule-syntax
 type PermissionSweeper struct {
-	tools map[ToolName]ToolSweeper
+	tools   map[ToolName]ToolSweeper
+	plugins *EnabledPlugins
 }
 
 // SettingsLevel distinguishes user-level (~/.claude/) from
@@ -408,6 +409,7 @@ type sweepConfig struct {
 	projectDir string
 	unsafe     bool
 	bashCfg    *BashPermissionConfig
+	plugins    *EnabledPlugins
 }
 
 // WithProjectLevel marks the target as project-level settings and
@@ -432,6 +434,14 @@ func WithBashConfig(cfg *BashPermissionConfig) SweepOption {
 func WithUnsafe() SweepOption {
 	return func(c *sweepConfig) {
 		c.unsafe = true
+	}
+}
+
+// WithEnabledPlugins sets the enabled plugins state for plugin
+// sweep. When non-nil, disabled/absent plugin entries are swept.
+func WithEnabledPlugins(p *EnabledPlugins) SweepOption {
+	return func(c *sweepConfig) {
+		c.plugins = p
 	}
 }
 
@@ -494,7 +504,7 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value
 		ToolSkill: NewToolSweeper(skill.ShouldSweep),
 	}
 
-	return &PermissionSweeper{tools: tools}, nil
+	return &PermissionSweeper{tools: tools, plugins: cfg.plugins}, nil
 }
 
 // Sweep removes stale allow/ask permission entries from obj.
@@ -544,6 +554,12 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 }
 
 func (p *PermissionSweeper) shouldSweep(ctx context.Context, entry string, result *SweepResult) bool {
+	// Plugin pre-filter: sweep disabled/absent plugin entries
+	// before dispatching to tool-specific sweepers.
+	if pluginName, ok := extractPluginNameFromEntry(entry); ok {
+		return !p.plugins.IsEnabled(pluginName)
+	}
+
 	te := extractToolEntry(entry)
 	if te == nil {
 		return false

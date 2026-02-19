@@ -53,6 +53,7 @@ type SettingsJSONFormatterStats struct {
 	SweptAllow int
 	SweptAsk   int
 	Warns      []string
+	ReduceMsgs []string
 }
 
 func (s *SettingsJSONFormatterStats) Summary() string {
@@ -64,6 +65,9 @@ func (s *SettingsJSONFormatterStats) Summary() string {
 	}
 	for _, w := range s.Warns {
 		fmt.Fprintf(&b, "Skipped: %s\n", w)
+	}
+	for _, m := range s.ReduceMsgs {
+		fmt.Fprintf(&b, "%s\n", m)
 	}
 	fmt.Fprintf(&b, "Size: %s -> %s bytes\n",
 		formatComma(int64(s.SizeBefore)), formatComma(int64(s.SizeAfter)))
@@ -222,6 +226,7 @@ func (s *SettingsJSONFormatter) Format(ctx context.Context, data []byte) (*Forma
 	stats.SweptAllow = sr.SweptAllow
 	stats.SweptAsk = sr.SweptAsk
 	stats.Warns = sr.Warns
+	stats.ReduceMsgs = sr.ReduceMsgs
 
 	sortArraysRecursive(obj)
 

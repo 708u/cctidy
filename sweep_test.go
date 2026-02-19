@@ -3,6 +3,7 @@ package cctidy
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/708u/cctidy/internal/set"
@@ -1334,6 +1335,115 @@ func TestSweepPermissions(t *testing.T) {
 		}
 		if result.SweptAllow != 1 {
 			t.Errorf("SweptAllow = %d, want 1", result.SweptAllow)
+		}
+	})
+
+	t.Run("phase 2 detects duplicate entries in allow", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Read", "Write", "Read",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		// Warn mode: entries are NOT removed.
+		if len(allow) != 3 {
+			t.Errorf("allow len = %d, want 3 (warn mode keeps all), got %v", len(allow), allow)
+		}
+		if len(result.ReduceMsgs) == 0 {
+			t.Error("expected ReduceMsgs to report duplicate")
+		}
+	})
+
+	t.Run("phase 2 detects bare tool subsumption", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Bash", "Bash(git add *)",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2 (warn mode), got %v", len(allow), allow)
+		}
+		found := false
+		for _, m := range result.ReduceMsgs {
+			if strings.Contains(m, "Redundant") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected Redundant message, got %v", result.ReduceMsgs)
+		}
+	})
+
+	t.Run("phase 2 detects MCP server subsumption", func(t *testing.T) {
+		t.Parallel()
+		servers := set.New("github")
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"mcp__github", "mcp__github__search_code",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", servers).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		if len(allow) != 2 {
+			t.Errorf("allow len = %d, want 2 (warn mode), got %v", len(allow), allow)
+		}
+		found := false
+		for _, m := range result.ReduceMsgs {
+			if strings.Contains(m, "Redundant") {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected Redundant message, got %v", result.ReduceMsgs)
+		}
+	})
+
+	t.Run("phase 2 runs after phase 1 sweep", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Read(//dead/path)", "Read(//dead/path)", "Write",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.NoPathsExist{}, "", nil).Sweep(t.Context(), obj)
+		allow := obj["permissions"].(map[string]any)["allow"].([]any)
+		// Phase 1 removes both dead entries; Phase 2 sees only "Write" (no duplicates).
+		if len(allow) != 1 {
+			t.Errorf("allow len = %d, want 1, got %v", len(allow), allow)
+		}
+		if result.SweptAllow != 2 {
+			t.Errorf("SweptAllow = %d, want 2", result.SweptAllow)
+		}
+		if len(result.ReduceMsgs) != 0 {
+			t.Errorf("expected no ReduceMsgs after phase 1 cleanup, got %v", result.ReduceMsgs)
+		}
+	})
+
+	t.Run("phase 2 no redundancy produces empty ReduceMsgs", func(t *testing.T) {
+		t.Parallel()
+		obj := map[string]any{
+			"permissions": map[string]any{
+				"allow": []any{
+					"Read", "Write", "Bash(git *)",
+				},
+			},
+		}
+		result := mustNewPermissionSweeper(t, testutil.AllPathsExist{}, "", nil).Sweep(t.Context(), obj)
+		if len(result.ReduceMsgs) != 0 {
+			t.Errorf("expected empty ReduceMsgs, got %v", result.ReduceMsgs)
 		}
 	})
 

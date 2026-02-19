@@ -120,6 +120,7 @@
       "Bash(npm run *)",
       "Edit(./src/alive.go)",
       "Read",
+      "Read",
       "Read(**/*.ts)",
       "Read(//alive/data/file.txt)",
       "Read(~/alive/notes.md)",
@@ -132,8 +133,10 @@
       "Task(stub)",
       "WebFetch(domain:github.com)",
       "Write",
+      "Write",
       "Write(../alive/output.txt)",
       "Write(../dead.go)",
+      "mcp__github",
       "mcp__github__*",
       "mcp__github__search_code",
       "mcp__plugin_github_github__search_code"

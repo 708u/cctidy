@@ -362,6 +362,7 @@ type SweepResult struct {
 	SweptAllow int
 	SweptAsk   int
 	Warns      []string
+	ReduceMsgs []string // Phase 2 reducer messages
 }
 
 // sweepCategory pairs a permission category key with its swept count.
@@ -375,9 +376,13 @@ type sweepCategory struct {
 // tool name extracted from each entry. Entries for unregistered tools are
 // kept unchanged.
 //
+// Phase 1 (per-entry): ToolSweeper removes dead entries.
+// Phase 2 (list-level): EntryReducer detects redundant entries.
+//
 // Ref: https://code.claude.com/docs/en/permissions#permission-rule-syntax
 type PermissionSweeper struct {
-	tools map[ToolName]ToolSweeper
+	tools    map[ToolName]ToolSweeper
+	reducers []EntryReducer
 }
 
 // SettingsLevel distinguishes user-level (~/.claude/) from
@@ -408,6 +413,7 @@ type sweepConfig struct {
 	projectDir string
 	unsafe     bool
 	bashCfg    *BashPermissionConfig
+	reducers   []EntryReducer
 }
 
 // WithProjectLevel marks the target as project-level settings and
@@ -432,6 +438,14 @@ func WithBashConfig(cfg *BashPermissionConfig) SweepOption {
 func WithUnsafe() SweepOption {
 	return func(c *sweepConfig) {
 		c.unsafe = true
+	}
+}
+
+// WithReducer appends an additional EntryReducer to run after
+// the default reducers (DedupReducer, SubsumptionReducer).
+func WithReducer(r EntryReducer) SweepOption {
+	return func(c *sweepConfig) {
+		c.reducers = append(c.reducers, r)
 	}
 }
 
@@ -494,7 +508,12 @@ func NewPermissionSweeper(checker PathChecker, homeDir string, servers set.Value
 		ToolSkill: NewToolSweeper(skill.ShouldSweep),
 	}
 
-	return &PermissionSweeper{tools: tools}, nil
+	// Default reducers + any user-supplied reducers.
+	reducers := make([]EntryReducer, 0, 2+len(cfg.reducers))
+	reducers = append(reducers, &DedupReducer{}, &SubsumptionReducer{})
+	reducers = append(reducers, cfg.reducers...)
+
+	return &PermissionSweeper{tools: tools, reducers: reducers}, nil
 }
 
 // Sweep removes stale allow/ask permission entries from obj.
@@ -525,7 +544,7 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 			continue
 		}
 
-		// Filter out swept entries and replace the original array.
+		// Phase 1: filter out swept entries.
 		kept := make([]any, 0, len(arr))
 		for _, v := range arr {
 			entry, ok := v.(string)
@@ -535,7 +554,23 @@ func (p *PermissionSweeper) Sweep(ctx context.Context, obj map[string]any) *Swee
 			}
 			kept = append(kept, v)
 		}
-		perms[cat.key] = kept
+
+		// Phase 2: detect redundant entries (warn only).
+		strs, others := splitStringEntries(kept)
+		if len(strs) > 0 {
+			for _, r := range p.reducers {
+				_, rr := r.Reduce(ctx, strs)
+				result.ReduceMsgs = append(result.ReduceMsgs, rr.Msgs...)
+			}
+		}
+
+		// Rebuild array: strings + non-strings (order preserved).
+		rebuilt := make([]any, 0, len(strs)+len(others))
+		for _, s := range strs {
+			rebuilt = append(rebuilt, s)
+		}
+		rebuilt = append(rebuilt, others...)
+		perms[cat.key] = rebuilt
 	}
 
 	result.SweptAllow = categories[0].count

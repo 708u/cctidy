@@ -2270,3 +2270,171 @@ func TestIntegrationSkillSweepUserLevel(t *testing.T) {
 		t.Error("Skill(fm-dir) should be swept from user settings")
 	}
 }
+
+func TestIntegrationReduceWarnMode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("duplicate entries detected but not removed", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Read",
+      "Bash(git *)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+		if err := cli.Run(t.Context()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// Warn mode: entries are NOT removed.
+		if !strings.Contains(got, `"Read"`) {
+			t.Error("Read entry should be kept in warn mode")
+		}
+		// Count occurrences of "Read" - both should still be present.
+		if strings.Count(got, `"Read"`) < 2 {
+			t.Error("duplicate Read entries should be preserved in warn mode")
+		}
+
+		output := buf.String()
+		if !strings.Contains(output, "Duplicate:") {
+			t.Errorf("expected Duplicate warning in output: %s", output)
+		}
+	})
+
+	t.Run("bare tool subsumption detected but not removed", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Bash(git add *)",
+      "Read"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+		if err := cli.Run(t.Context()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// Warn mode: both entries kept.
+		if !strings.Contains(got, `"Bash"`) {
+			t.Error("bare Bash should be kept")
+		}
+		if !strings.Contains(got, `"Bash(git add *)"`) {
+			t.Error("Bash(git add *) should be kept in warn mode")
+		}
+
+		output := buf.String()
+		if !strings.Contains(output, "Redundant:") {
+			t.Errorf("expected Redundant warning in output: %s", output)
+		}
+	})
+
+	t.Run("MCP server subsumption detected but not removed", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		projectDir := filepath.Join(dir, "project")
+		claudeDir := filepath.Join(projectDir, ".claude")
+		os.MkdirAll(claudeDir, 0o755)
+
+		// Create .mcp.json with "github" server
+		os.WriteFile(filepath.Join(projectDir, ".mcp.json"), []byte(`{
+			"mcpServers": {
+				"github": {"type": "stdio", "command": "gh-mcp"}
+			}
+		}`), 0o644)
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "mcp__github",
+      "mcp__github__search_code",
+      "mcp__github__create_pr",
+      "Read"
+    ]
+  }
+}`
+		file := filepath.Join(claudeDir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, projectRoot: projectDir, w: &buf}
+		if err := cli.Run(t.Context()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		data, _ := os.ReadFile(file)
+		got := string(data)
+
+		// Warn mode: all entries kept.
+		if !strings.Contains(got, `"mcp__github"`) {
+			t.Error("bare mcp__github should be kept")
+		}
+		if !strings.Contains(got, `"mcp__github__search_code"`) {
+			t.Error("mcp__github__search_code should be kept in warn mode")
+		}
+		if !strings.Contains(got, `"mcp__github__create_pr"`) {
+			t.Error("mcp__github__create_pr should be kept in warn mode")
+		}
+
+		output := buf.String()
+		if !strings.Contains(output, "Redundant:") {
+			t.Errorf("expected Redundant warning in output: %s", output)
+		}
+	})
+
+	t.Run("no redundancy produces no reduce messages", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+
+		input := `{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Bash(git *)"
+    ]
+  }
+}`
+		file := filepath.Join(dir, "settings.json")
+		os.WriteFile(file, []byte(input), 0o644)
+
+		var buf bytes.Buffer
+		cli := &CLI{Target: file, Verbose: true, homeDir: dir, checker: &osPathChecker{}, w: &buf}
+		if err := cli.Run(t.Context()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		output := buf.String()
+		if strings.Contains(output, "Duplicate:") {
+			t.Errorf("unexpected Duplicate in output: %s", output)
+		}
+		if strings.Contains(output, "Redundant:") {
+			t.Errorf("unexpected Redundant in output: %s", output)
+		}
+	})
+}

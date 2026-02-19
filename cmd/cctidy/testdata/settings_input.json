@@ -53,7 +53,10 @@
       "Skill(dead-skill)",
       "Skill(plugin:my-skill)",
       "Skill(stub-skill *)",
-      "Skill(dead-skill *)"
+      "Skill(dead-skill *)",
+      "Write",
+      "Read",
+      "mcp__github"
     ]
   },
   "sandbox": {

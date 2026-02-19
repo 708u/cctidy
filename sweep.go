@@ -231,14 +231,6 @@ func NewBashExcluder(cfg BashPermissionConfig) *BashExcluder {
 	}
 }
 
-// IsRemoveTarget reports whether the specifier's command (first token)
-// matches remove_commands. Entries matching remove_commands are always
-// swept, taking priority over exclude rules.
-func (e *BashExcluder) IsRemoveTarget(specifier string) bool {
-	cmd, _, _ := strings.Cut(specifier, " ")
-	return e.removeCommands.Has(cmd)
-}
-
 // IsExcluded reports whether the specifier matches any exclusion rule.
 // Checks are applied in order: entries (exact), commands (first token),
 // paths (prefix match on pre-extracted absolute paths).
@@ -298,7 +290,8 @@ func (b *BashToolSweeper) ShouldSweep(ctx context.Context, entry StandardEntry) 
 	}
 	specifier := entry.Specifier
 
-	if b.excluder.IsRemoveTarget(specifier) {
+	cmd, _, _ := strings.Cut(specifier, " ")
+	if b.excluder.removeCommands.Has(cmd) {
 		return ToolSweepResult{Sweep: true, AllowOnly: true}
 	}
 

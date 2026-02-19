@@ -418,58 +418,6 @@ func TestBashToolSweeperShouldSweep(t *testing.T) {
 	}
 }
 
-func TestBashExcluderIsRemoveTarget(t *testing.T) {
-	t.Parallel()
-
-	excl := NewBashExcluder(BashPermissionConfig{
-		Allow: BashAllowConfig{RemoveCommands: []string{"npm", "pip"}},
-	})
-
-	tests := []struct {
-		name      string
-		specifier string
-		want      bool
-	}{
-		{
-			name:      "remove match npm",
-			specifier: "npm install foo",
-			want:      true,
-		},
-		{
-			name:      "remove match pip",
-			specifier: "pip install requests",
-			want:      true,
-		},
-		{
-			name:      "no match git",
-			specifier: "git status",
-			want:      false,
-		},
-		{
-			name:      "single token match",
-			specifier: "npm",
-			want:      true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := excl.IsRemoveTarget(tt.specifier); got != tt.want {
-				t.Errorf("IsRemoveTarget(%q) = %v, want %v", tt.specifier, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestBashExcluderIsRemoveTargetEmpty(t *testing.T) {
-	t.Parallel()
-	excl := NewBashExcluder(BashPermissionConfig{})
-	if excl.IsRemoveTarget("npm install foo") {
-		t.Error("empty remove commands should not match anything")
-	}
-}
-
 func TestBashExcluderIsExcluded(t *testing.T) {
 	t.Parallel()
 

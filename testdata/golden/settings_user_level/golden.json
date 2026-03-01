@@ -1,0 +1,35 @@
+{
+  "env": {
+    "A_VAR": "a",
+    "Z_VAR": "z"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(./run.sh)",
+      "Bash(cat ~/config/settings.json)",
+      "Bash(git -C /alive/path pull)",
+      "Bash(npm run *)",
+      "Edit(./src/local.go)",
+      "Read(//alive/path)",
+      "Read(~/config/settings.json)",
+      "Skill(home-cmd)",
+      "Skill(home-skill)",
+      "Skill(plugin:my-skill)",
+      "Task(Explore)",
+      "Task(home-agent)",
+      "Task(plugin:my-agent)",
+      "Write",
+      "Write(~/dead/notes.md)",
+      "mcp__github__*",
+      "mcp__github__search_code",
+      "mcp__plugin_github_github__search_code"
+    ],
+    "ask": [
+      "Write(~/dead/ask-notes.md)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Read(//dead/deny)"
+    ]
+  }
+}

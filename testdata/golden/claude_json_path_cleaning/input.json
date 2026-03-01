@@ -1,0 +1,22 @@
+{
+  "numStartups": 100,
+  "theme": "dark-mode",
+  "projects": {
+    "/Users/test/alive-project": {
+      "allowedTools": ["Read", "Bash"],
+      "hasTrustDialogAccepted": true,
+      "lastSessionId": "session-aaa"
+    },
+    "/Users/test/dead-project": {
+      "allowedTools": ["Write"],
+      "hasTrustDialogAccepted": true,
+      "lastSessionId": "session-bbb"
+    }
+  },
+  "githubRepoPaths": {
+    "org/mixed-repo": ["/Users/test/alive-project", "/Users/test/dead-checkout"],
+    "org/dead-repo": ["/Users/test/dead-checkout-a", "/Users/test/dead-checkout-b"],
+    "org/alive-repo": ["/Users/test/alive-checkout"]
+  },
+  "installMethod": "npm"
+}

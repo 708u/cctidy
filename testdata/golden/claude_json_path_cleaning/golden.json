@@ -1,0 +1,23 @@
+{
+  "githubRepoPaths": {
+    "org/alive-repo": [
+      "/Users/test/alive-checkout"
+    ],
+    "org/mixed-repo": [
+      "/Users/test/alive-project"
+    ]
+  },
+  "installMethod": "npm",
+  "numStartups": 100,
+  "projects": {
+    "/Users/test/alive-project": {
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
+      "hasTrustDialogAccepted": true,
+      "lastSessionId": "session-aaa"
+    }
+  },
+  "theme": "dark-mode"
+}

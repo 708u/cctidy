@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"flag"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,8 +15,6 @@ import (
 	"github.com/708u/cctidy/internal/testutil"
 )
 
-var update = flag.Bool("update", false, "update golden files")
-
 func mustSettingsFormatter(t *testing.T, checker cctidy.PathChecker, homeDir string, servers set.Value[string], opts ...cctidy.SweepOption) Formatter {
 	t.Helper()
 	s, err := cctidy.NewPermissionSweeper(checker, homeDir, servers, opts...)
@@ -25,101 +22,6 @@ func mustSettingsFormatter(t *testing.T, checker cctidy.PathChecker, homeDir str
 		t.Fatalf("NewPermissionSweeper: %v", err)
 	}
 	return cctidy.NewSettingsJSONFormatter(s)
-}
-
-func TestGolden(t *testing.T) {
-	t.Parallel()
-	input, err := os.ReadFile("testdata/input.json")
-	if err != nil {
-		t.Fatalf("reading input: %v", err)
-	}
-
-	f := cctidy.NewClaudeJSONFormatter(testutil.AllPathsExist{})
-	result, err := f.Format(t.Context(), input)
-	if err != nil {
-		t.Fatalf("format: %v", err)
-	}
-
-	goldenPath := "testdata/golden.json"
-	if *update {
-		if err := os.WriteFile(goldenPath, result.Data, 0o644); err != nil {
-			t.Fatalf("updating golden: %v", err)
-		}
-		t.Log("golden file updated")
-		return
-	}
-
-	golden, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatalf("reading golden (run with -update to generate): %v", err)
-	}
-
-	if !bytes.Equal(result.Data, golden) {
-		t.Errorf("output differs from golden:\ngot:\n%s\nwant:\n%s", result.Data, golden)
-	}
-}
-
-func TestSettingsGolden(t *testing.T) {
-	t.Parallel()
-	input, err := os.ReadFile("testdata/settings_input.json")
-	if err != nil {
-		t.Fatalf("reading input: %v", err)
-	}
-
-	homeDir := filepath.Join(t.TempDir(), "home")
-	projectDir := filepath.Join(t.TempDir(), "project")
-	// Create an agents directory with a stub agent so the agent set
-	// is non-empty and unknown agents get swept.
-	agentsDir := filepath.Join(projectDir, ".claude", "agents")
-	os.MkdirAll(agentsDir, 0o755)
-	os.WriteFile(filepath.Join(agentsDir, "stub.md"), []byte("---\nname: stub\n---\n# Stub"), 0o644)
-	// Create a skills directory with a stub skill and a commands
-	// directory with a stub command so the skill set is non-empty.
-	skillsDir := filepath.Join(projectDir, ".claude", "skills", "stub-skill")
-	os.MkdirAll(skillsDir, 0o755)
-	os.WriteFile(filepath.Join(skillsDir, "SKILL.md"), []byte("# Stub Skill"), 0o644)
-	commandsDir := filepath.Join(projectDir, ".claude", "commands")
-	os.MkdirAll(commandsDir, 0o755)
-	os.WriteFile(filepath.Join(commandsDir, "stub-cmd.md"), []byte("# Stub Command"), 0o644)
-	checker := testutil.CheckerFor(
-		"/alive/repo",
-		"/alive/data/file.txt",
-		filepath.Join(projectDir, "bin/run"),
-		filepath.Join(homeDir, "config.json"),
-		filepath.Join(homeDir, "alive/notes.md"),
-		filepath.Join(projectDir, "src/alive.go"),
-		filepath.Join(projectDir, "../alive/output.txt"),
-	)
-	mcpServers := set.New("github")
-	sweeper, err := cctidy.NewPermissionSweeper(checker, homeDir, mcpServers,
-		cctidy.WithUnsafe(),
-		cctidy.WithProjectLevel(projectDir),
-	)
-	if err != nil {
-		t.Fatalf("NewPermissionSweeper: %v", err)
-	}
-	result, err := cctidy.NewSettingsJSONFormatter(sweeper).Format(t.Context(), input)
-	if err != nil {
-		t.Fatalf("format: %v", err)
-	}
-
-	goldenPath := "testdata/settings_golden.json"
-	if *update {
-		if err := os.WriteFile(goldenPath, result.Data, 0o644); err != nil {
-			t.Fatalf("updating golden: %v", err)
-		}
-		t.Log("settings golden file updated")
-		return
-	}
-
-	golden, err := os.ReadFile(goldenPath)
-	if err != nil {
-		t.Fatalf("reading golden (run with -update to generate): %v", err)
-	}
-
-	if !bytes.Equal(result.Data, golden) {
-		t.Errorf("output differs from golden:\ngot:\n%s\nwant:\n%s", result.Data, golden)
-	}
 }
 
 func TestIntegrationPathCleaning(t *testing.T) {

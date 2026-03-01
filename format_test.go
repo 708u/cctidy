@@ -323,6 +323,112 @@ func TestFormatComma(t *testing.T) {
 	}
 }
 
+func TestClaudeJSONFormatterStatsSummary(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		stats ClaudeJSONFormatterStats
+		want  string
+	}{
+		{
+			name: "projects and repos removed",
+			stats: ClaudeJSONFormatterStats{
+				ProjectsBefore: 5, ProjectsAfter: 3,
+				RepoBefore: 10, RepoAfter: 7, RemovedRepos: 2,
+				SizeBefore: 1234, SizeAfter: 987,
+			},
+			want: "Projects: 5 -> 3 (removed 2)\nGitHub repo paths: 10 -> 7 (removed 3 paths, 2 empty repos)\nSize: 1,234 -> 987 bytes\n",
+		},
+		{
+			name: "no removals",
+			stats: ClaudeJSONFormatterStats{
+				ProjectsBefore: 3, ProjectsAfter: 3,
+				RepoBefore: 5, RepoAfter: 5,
+				SizeBefore: 500, SizeAfter: 480,
+			},
+			want: "Size: 500 -> 480 bytes\n",
+		},
+		{
+			name: "only projects removed",
+			stats: ClaudeJSONFormatterStats{
+				ProjectsBefore: 4, ProjectsAfter: 2,
+				RepoBefore: 3, RepoAfter: 3,
+				SizeBefore: 100, SizeAfter: 80,
+			},
+			want: "Projects: 4 -> 2 (removed 2)\nSize: 100 -> 80 bytes\n",
+		},
+		{
+			name: "only repos removed",
+			stats: ClaudeJSONFormatterStats{
+				ProjectsBefore: 2, ProjectsAfter: 2,
+				RepoBefore: 6, RepoAfter: 4, RemovedRepos: 1,
+				SizeBefore: 2000, SizeAfter: 1500,
+			},
+			want: "GitHub repo paths: 6 -> 4 (removed 2 paths, 1 empty repos)\nSize: 2,000 -> 1,500 bytes\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := tt.stats.Summary()
+			if got != tt.want {
+				t.Errorf("Summary():\ngot:  %q\nwant: %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSettingsJSONFormatterStatsSummary(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		stats SettingsJSONFormatterStats
+		want  string
+	}{
+		{
+			name: "swept entries",
+			stats: SettingsJSONFormatterStats{
+				SweptAllow: 3, SweptAsk: 1,
+				SizeBefore: 500, SizeAfter: 400,
+			},
+			want: "Swept: 3 allow, 1 ask entries\nSize: 500 -> 400 bytes\n",
+		},
+		{
+			name: "no swept entries",
+			stats: SettingsJSONFormatterStats{
+				SizeBefore: 300, SizeAfter: 280,
+			},
+			want: "Size: 300 -> 280 bytes\n",
+		},
+		{
+			name: "with warnings",
+			stats: SettingsJSONFormatterStats{
+				Warns:      []string{"Read(//skipped/path)"},
+				SizeBefore: 200, SizeAfter: 190,
+			},
+			want: "Skipped: Read(//skipped/path)\nSize: 200 -> 190 bytes\n",
+		},
+		{
+			name: "swept and warnings",
+			stats: SettingsJSONFormatterStats{
+				SweptAllow: 2, SweptAsk: 0,
+				Warns:      []string{"Edit(./warn1)", "Bash(warn2)"},
+				SizeBefore: 1000, SizeAfter: 800,
+			},
+			want: "Swept: 2 allow, 0 ask entries\nSkipped: Edit(./warn1)\nSkipped: Bash(warn2)\nSize: 1,000 -> 800 bytes\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := tt.stats.Summary()
+			if got != tt.want {
+				t.Errorf("Summary():\ngot:  %q\nwant: %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatRespectsContextCancellation(t *testing.T) {
 	t.Parallel()
 	input := `{"projects": {"/a": {}, "/b": {}}, "githubRepoPaths": {"r": ["/a"]}}`

@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//alive/path)",
+      "Read(//dead/path)",
+      "Read(~/config/settings.json)",
+      "Read(~/dead/missing.txt)",
+      "Edit(./src/local.go)",
+      "Bash(git -C /alive/path pull)",
+      "Bash(git -C /dead/repo status)",
+      "Bash(cat ~/config/settings.json)",
+      "Bash(cat ~/dead/missing.conf)",
+      "Bash(./run.sh)",
+      "Bash(npm run *)",
+      "Task(Explore)",
+      "Task(home-agent)",
+      "Task(dead-agent)",
+      "Task(plugin:my-agent)",
+      "Skill(home-skill)",
+      "Skill(home-cmd)",
+      "Skill(dead-skill)",
+      "Skill(plugin:my-skill)",
+      "mcp__github__search_code",
+      "mcp__github__*",
+      "mcp__slack__post_message",
+      "mcp__plugin_github_github__search_code",
+      "Write",
+      "Write(~/dead/notes.md)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Read(//dead/deny)"
+    ],
+    "ask": [
+      "Edit(//dead/ask-path)",
+      "Write(~/dead/ask-notes.md)"
+    ]
+  },
+  "env": {
+    "Z_VAR": "z",
+    "A_VAR": "a"
+  }
+}
